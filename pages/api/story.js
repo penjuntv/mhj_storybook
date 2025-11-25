@@ -1,12 +1,13 @@
 // pages/api/story.js
 import OpenAI from "openai";
 
+// OpenAI 클라이언트 (서버 전용)
 const client = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
 
 export default async function handler(req, res) {
-  // GET: health check
+  // 1) GET: 상태 확인용
   if (req.method === "GET") {
     return res.status(200).json({
       ok: true,
@@ -15,7 +16,7 @@ export default async function handler(req, res) {
     });
   }
 
-  // Only allow POST for story generation
+  // 2) POST 이외는 막기
   if (req.method !== "POST") {
     res.setHeader("Allow", ["GET", "POST"]);
     return res
@@ -23,13 +24,16 @@ export default async function handler(req, res) {
       .json({ error: `Method ${req.method} Not Allowed (use POST)` });
   }
 
+  // 3) 환경변수 체크
   if (!process.env.OPENAI_API_KEY) {
     return res
       .status(500)
       .json({ error: "OPENAI_API_KEY is not set on the server." });
   }
 
-  const { words = [], mustUse = [], answers = {} } = req.body || {};
+  // 4) 요청 바디 파싱
+  const { words = [], mustUse = [], answers = {}, length = "normal" } =
+    req.body || {};
 
   if (!Array.isArray(words) || words.length === 0) {
     return res
@@ -38,21 +42,28 @@ export default async function handler(req, res) {
   }
 
   const safeMustUse = Array.isArray(mustUse) ? mustUse : [];
-  const { mainCharacter = "", place = "", event = "" } = answers || {};
 
-  if (!mainCharacter || !place || !event) {
+  // 여기서 이름을 **프론트와 정확히 맞춤**: mainCharacter, place, problem
+  const {
+    mainCharacter = "",
+    place = "",
+    problem = "",
+  } = answers || {};
+
+  if (!mainCharacter.trim() || !place.trim() || !problem.trim()) {
     return res.status(400).json({
       error:
-        "answers.mainCharacter, answers.place, and answers.event are required.",
+        "answers.mainCharacter, answers.place, and answers.problem are required.",
     });
   }
 
-  // Decide story length based on number of words
-  const lengthCategory = words.length <= 5 ? "normal" : "long";
+  // 5) 길이 텍스트
   const lengthText =
-    lengthCategory === "normal"
-      ? "about 5–7 short sentences"
-      : "about 9–12 short sentences";
+    length === "short"
+      ? "about 5 short sentences"
+      : length === "long"
+      ? "about 9–12 short sentences"
+      : "about 5–7 short sentences";
 
   const wordsText = words.join(", ");
   const mustText =
@@ -61,29 +72,25 @@ export default async function handler(req, res) {
   const ideaSummary = [
     `Main character: ${mainCharacter}`,
     `Place: ${place}`,
-    `Event/problem: ${event}`,
-  ].join("\n");
+    `Event/problem: ${problem}`,
+  ]
+    .filter(Boolean)
+    .join("\n");
 
   const userPrompt = `
-You are a warm, playful English story writer for very young children (ages 3–7) who are just starting to read.
+You are a friendly English teacher writing super-simple English stories for young Korean and Chinese children.
 
-TASK:
-- Write a short picture-book style story in VERY SIMPLE English.
-- Use these English words somewhere in the story: ${wordsText}.
-- Strongly try to include these must-use words: ${mustText}.
-- Follow this idea from the parent/child:
+Use these English words in the story: ${wordsText}
+Make sure you include these must-use words: ${mustText}
+
+Story idea (from parent/child):
 ${ideaSummary}
 
-STYLE RULES:
-- ${lengthText}.
-- Use simple sentences with clear subjects and verbs.
-- The story should feel like a children's picture book or cartoon.
-- Include at least two moments of gentle imagination (for example: talking animals, magic doors, brave toys, tiny fairies, friendly monsters, etc.).
-- Add some emotional words (happy, excited, scared, surprised, proud).
-- Keep everything safe, kind, and positive.
-- End with a clearly happy and comforting ending.
-- Do NOT add any Korean or Chinese translation. Only output the English story text.
-`.trim();
+Write the story in very easy English, ${lengthText}.
+Use short sentences that a young learner can read (ages 3–7).
+The story should feel like a fun picture book or cartoon episode.
+Do NOT add any Korean or Chinese translation. Only the English story.
+  `.trim();
 
   try {
     const completion = await client.chat.completions.create({
@@ -92,7 +99,7 @@ STYLE RULES:
         {
           role: "system",
           content:
-            "You write very simple, kind, and imaginative English stories for young children who are beginning readers.",
+            "You write very simple, fun, picture-book-style English stories for children who are just starting to read.",
         },
         { role: "user", content: userPrompt },
       ],
