@@ -1,326 +1,265 @@
 // pages/index.js
-
 import { useState } from "react";
 
-export default function HomePage() {
-  const [wordsText, setWordsText] = useState("");
-  const [mainCharacter, setMainCharacter] = useState("");
-  const [place, setPlace] = useState("");
-  const [problem, setProblem] = useState("");
-  const [ending, setEnding] = useState("");
-  const [length, setLength] = useState("normal"); // "shorter" | "normal" | "longer"
-
-  const [story, setStory] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
+export default function Home() {
+  const [wordsInput, setWordsInput] = useState("");
+  const [chips, setChips] = useState([]);
+  const [mustUse, setMustUse] = useState([]);
+  const [step2, setStep2] = useState({
+    hero: "",
+    place: "",
+    problem: "",
+    ending: ""
+  });
+  const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
+  const [storyShort, setStoryShort] = useState("");
+  const [storyLong, setStoryLong] = useState("");
 
-  async function handleCreateStory(selectedLength = "normal") {
-    setLength(selectedLength);
-    setIsLoading(true);
+  // Step 1: 단어 입력 → 칩 생성
+  const handleWordsChange = (e) => {
+    const value = e.target.value;
+    setWordsInput(value);
+
+    const tokens = value
+      .split(/[,\n]/)
+      .map((w) => w.trim())
+      .filter((w) => w.length > 0);
+
+    setChips(tokens);
+    // chips가 바뀌면 mustUse는 (존재하는 것만) 유지
+    setMustUse((prev) => prev.filter((w) => tokens.includes(w)));
+  };
+
+  const toggleMustUse = (word) => {
+    setMustUse((prev) =>
+      prev.includes(word) ? prev.filter((w) => w !== word) : [...prev, word]
+    );
+  };
+
+  const handleStep2Change = (field, value) => {
+    setStep2((prev) => ({ ...prev, [field]: value }));
+  };
+
+  // 서버에 스토리 요청
+  const requestStory = async (lengthType) => {
     setErrorMsg("");
-    setStory("");
+    setStoryShort("");
+    setStoryLong("");
+    setLoading(true);
 
     try {
       const res = await fetch("/api/story", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json"
+        },
         body: JSON.stringify({
-          wordsText,
-          mainCharacter,
-          place,
-          problem,
-          ending,
-          length: selectedLength,
-        }),
+          words: chips,
+          mustUse,
+          idea: step2,
+          lengthType // "short" | "long"
+        })
       });
 
-      const data = await res.json();
-
       if (!res.ok) {
-        setErrorMsg(data.error || "Story API error");
-        return;
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || `Request failed: ${res.status}`);
       }
 
-      setStory(data.story);
+      const data = await res.json();
+      if (lengthType === "short") {
+        setStoryShort(data.story || "");
+      } else {
+        setStoryLong(data.story || "");
+      }
     } catch (err) {
       console.error(err);
-      setErrorMsg("Network error while calling /api/story");
+      setErrorMsg(err.message || "Unknown error");
     } finally {
-      setIsLoading(false);
+      setLoading(false);
     }
-  }
+  };
 
   return (
-    <div
-      style={{
-        minHeight: "100vh",
-        padding: "40px 16px",
-        display: "flex",
-        justifyContent: "center",
-        background: "#f7f3ee",
-      }}
-    >
-      <div
-        style={{
-          maxWidth: "900px",
-          width: "100%",
-          background: "#fff",
-          borderRadius: "16px",
-          boxShadow: "0 12px 30px rgba(0,0,0,0.07)",
-          padding: "32px 20px",
-        }}
-      >
-        <h1
-          style={{
-            fontSize: "24px",
-            fontWeight: 700,
-            marginBottom: "4px",
-          }}
-        >
-          🎨 AI Storybook – Tell a story with today&apos;s words
-        </h1>
-        <p style={{ marginBottom: "24px", color: "#666", fontSize: "14px" }}>
-          Type the English words you learned today, then build a short story
-          together. 오늘 배운 영어 단어를 넣고, 아이와 함께 아주 쉬운 영어
-          동화를 만들어 보세요.
-        </p>
+    <div className="app-root">
+      <main className="app-card">
+        <header className="app-header">
+          <span className="app-tag">AI Storybook · Phase 1</span>
+          <h1 className="app-title">
+            Tell a story with today&apos;s English words
+          </h1>
+          <p className="app-sub">
+            Type the English words you learned today, then build a very simple
+            English story together.
+          </p>
+        </header>
 
         {/* STEP 1 */}
-        <section
-          style={{
-            padding: "16px",
-            borderRadius: "12px",
-            background: "#fff7f1",
-            marginBottom: "20px",
-          }}
-        >
-          <h2 style={{ fontSize: "16px", fontWeight: 700, marginBottom: "8px" }}>
-            STEP 1 · Today&apos;s words
-          </h2>
-          <p style={{ fontSize: "13px", color: "#555", marginBottom: "8px" }}>
-            Type the English words you learned today. Separate each word with a
-            comma or new line. 오늘 배운 영어 단어를 입력해주세요. 쉼표(,)나 줄바꿈으로
-            구분해 주세요.
+        <section className="step-card">
+          <div className="step-label">STEP 1</div>
+          <h2 className="step-title">Today&apos;s words</h2>
+          <p className="step-desc">
+            Type the English words you learned today. Separate each word with a{" "}
+            <strong>comma</strong> or a <strong>new line</strong>.
           </p>
+
           <textarea
-            value={wordsText}
-            onChange={(e) => setWordsText(e.target.value)}
-            rows={3}
+            className="textarea"
             placeholder="e.g. apple, banana, cat, dog"
-            style={{
-              width: "100%",
-              fontSize: "14px",
-              padding: "10px",
-              borderRadius: "8px",
-              border: "1px solid #ddd",
-              resize: "vertical",
-            }}
+            value={wordsInput}
+            onChange={handleWordsChange}
           />
+
+          <div className="chips-help">
+            <strong>Word chips</strong>{" "}
+            <span className="chips-help-sub">
+              (click to mark as <span className="star">★</span> MUST-use)
+            </span>
+          </div>
+          <p className="chips-note">
+            <span className="star">★</span> = must appear in the story.
+          </p>
+
+          <div className="chips-row">
+            {chips.length === 0 && (
+              <span className="chips-empty">No words yet. Start typing above.</span>
+            )}
+            {chips.map((w) => {
+              const selected = mustUse.includes(w);
+              return (
+                <button
+                  key={w}
+                  type="button"
+                  className={`chip ${selected ? "chip-selected" : ""}`}
+                  onClick={() => toggleMustUse(w)}
+                >
+                  {selected && <span className="chip-star">★</span>}
+                  <span>{w}</span>
+                </button>
+              );
+            })}
+          </div>
         </section>
 
         {/* STEP 2 */}
-        <section
-          style={{
-            padding: "16px",
-            borderRadius: "12px",
-            background: "#f3f5ff",
-            marginBottom: "20px",
-          }}
-        >
-          <h2 style={{ fontSize: "16px", fontWeight: 700, marginBottom: "8px" }}>
-            STEP 2 · Tell me your story idea
-          </h2>
-          <p
-            style={{
-              fontSize: "13px",
-              color: "#555",
-              marginBottom: "12px",
-            }}
-          >
+        <section className="step-card">
+          <div className="step-label">STEP 2</div>
+          <h2 className="step-title">Tell me your story idea</h2>
+          <p className="step-desc">
             Answer in simple English. A parent can type for the child.
-            아이가 말한 내용을 그대로 영어로 옮겨 적어도 되고, 부모가 대신 간단히
-            써주어도 됩니다.
           </p>
 
-          <div style={{ marginBottom: "8px" }}>
-            <label
-              style={{ fontSize: "13px", fontWeight: 600, display: "block" }}
-            >
-              1) Who is the main character?
-            </label>
+          <label className="field-label">
+            1) Who is the main character?
             <input
-              type="text"
-              value={mainCharacter}
-              onChange={(e) => setMainCharacter(e.target.value)}
+              className="input"
               placeholder="e.g. Yujin, a brave girl"
-              style={{
-                width: "100%",
-                fontSize: "14px",
-                padding: "8px",
-                borderRadius: "8px",
-                border: "1px solid #ddd",
-              }}
+              value={step2.hero}
+              onChange={(e) => handleStep2Change("hero", e.target.value)}
             />
-          </div>
+          </label>
 
-          <div style={{ marginBottom: "8px" }}>
-            <label
-              style={{ fontSize: "13px", fontWeight: 600, display: "block" }}
-            >
-              2) Where does the story happen?
-            </label>
+          <label className="field-label">
+            2) Where does the story happen?
             <input
-              type="text"
-              value={place}
-              onChange={(e) => setPlace(e.target.value)}
+              className="input"
               placeholder="e.g. in the yard with a cat and a dog"
-              style={{
-                width: "100%",
-                fontSize: "14px",
-                padding: "8px",
-                borderRadius: "8px",
-                border: "1px solid #ddd",
-              }}
+              value={step2.place}
+              onChange={(e) => handleStep2Change("place", e.target.value)}
             />
-          </div>
+          </label>
 
-          <div style={{ marginBottom: "8px" }}>
-            <label
-              style={{ fontSize: "13px", fontWeight: 600, display: "block" }}
-            >
-              3) What happens? (problem or event)
-            </label>
+          <label className="field-label">
+            3) What happens? (problem or event)
             <input
-              type="text"
-              value={problem}
-              onChange={(e) => setProblem(e.target.value)}
+              className="input"
               placeholder="e.g. they play basketball together"
-              style={{
-                width: "100%",
-                fontSize: "14px",
-                padding: "8px",
-                borderRadius: "8px",
-                border: "1px solid #ddd",
-              }}
+              value={step2.problem}
+              onChange={(e) => handleStep2Change("problem", e.target.value)}
             />
-          </div>
+          </label>
 
-          <div style={{ marginBottom: "12px" }}>
-            <label
-              style={{ fontSize: "13px", fontWeight: 600, display: "block" }}
-            >
-              4) How do you want the story to end?
-            </label>
+          <label className="field-label">
+            4) How do you want the story to end?
             <input
-              type="text"
-              value={ending}
-              onChange={(e) => setEnding(e.target.value)}
+              className="input"
               placeholder="e.g. everyone is happy and still friends"
-              style={{
-                width: "100%",
-                fontSize: "14px",
-                padding: "8px",
-                borderRadius: "8px",
-                border: "1px solid #ddd",
-              }}
+              value={step2.ending}
+              onChange={(e) => handleStep2Change("ending", e.target.value)}
             />
-          </div>
+          </label>
 
-          {/* 버튼들 */}
-          <div style={{ display: "flex", gap: "8px", marginTop: "8px" }}>
+          <div className="button-row">
             <button
-              onClick={() => handleCreateStory("normal")}
-              disabled={isLoading}
-              style={{
-                padding: "8px 14px",
-                borderRadius: "999px",
-                border: "none",
-                background: "#7b5cff",
-                color: "#fff",
-                fontSize: "14px",
-                fontWeight: 600,
-                cursor: "pointer",
-                opacity: isLoading ? 0.6 : 1,
-              }}
+              type="button"
+              className="btn primary"
+              onClick={() => requestStory("short")}
+              disabled={loading}
             >
-              {isLoading ? "Making story..." : "Create story"}
+              {loading ? "Creating..." : "Create story"}
             </button>
             <button
-              onClick={() => handleCreateStory("shorter")}
-              disabled={isLoading}
-              style={{
-                padding: "8px 14px",
-                borderRadius: "999px",
-                border: "none",
-                background: "#eee",
-                color: "#444",
-                fontSize: "13px",
-                cursor: "pointer",
-              }}
+              type="button"
+              className="btn ghost"
+              onClick={() => requestStory("short")}
+              disabled={loading}
             >
               Shorter
             </button>
             <button
-              onClick={() => handleCreateStory("longer")}
-              disabled={isLoading}
-              style={{
-                padding: "8px 14px",
-                borderRadius: "999px",
-                border: "none",
-                background: "#eee",
-                color: "#444",
-                fontSize: "13px",
-                cursor: "pointer",
-              }}
+              type="button"
+              className="btn ghost"
+              onClick={() => requestStory("long")}
+              disabled={loading}
             >
               Longer
             </button>
           </div>
 
-          {errorMsg && (
-            <p
-              style={{
-                marginTop: "10px",
-                color: "#c0392b",
-                fontSize: "13px",
-              }}
-            >
-              Error: {errorMsg}
+          {errorMsg && <p className="error-msg">Error: {errorMsg}</p>}
+        </section>
+
+        {/* STEP 3 */}
+        <section className="step-card">
+          <div className="step-label">STEP 3</div>
+          <h2 className="step-title">Your AI story</h2>
+          <p className="step-desc">
+            Read the story together. You can also print or copy it later.
+          </p>
+
+          {storyShort === "" && storyLong === "" && !loading && (
+            <p className="placeholder">
+              When you click &ldquo;Create story&rdquo;, your story will appear
+              here.
             </p>
+          )}
+
+          {storyShort && (
+            <div className="story-box">
+              <div className="story-tag">Version A (short)</div>
+              <p className="story-text">{storyShort}</p>
+            </div>
+          )}
+
+          {storyLong && (
+            <div className="story-box">
+              <div className="story-tag">Version B (longer)</div>
+              <p className="story-text">{storyLong}</p>
+            </div>
           )}
         </section>
 
-        {/* STEP 3 – 결과 스토리 */}
-        <section
-          style={{
-            padding: "16px",
-            borderRadius: "12px",
-            background: "#f9fafb",
-          }}
-        >
-          <h2 style={{ fontSize: "16px", fontWeight: 700, marginBottom: "8px" }}>
-            STEP 3 · Your AI story
-          </h2>
-          {story ? (
-            <p
-              style={{
-                whiteSpace: "pre-line",
-                fontSize: "14px",
-                lineHeight: 1.6,
-                color: "#333",
-              }}
-            >
-              {story}
-            </p>
-          ) : (
-            <p style={{ fontSize: "13px", color: "#777" }}>
-              After you click &quot;Create story&quot;, your child&apos;s simple
-              English story will appear here. 동화 만들기를 누르면, 아이의 동화가
-              여기에 나타납니다.
-            </p>
-          )}
+        {/* Admin 준비 영역: 아직 기능 없음, 텍스트만 */}
+        <section className="admin-section">
+          <h2 className="admin-title">Admin mode (coming soon)</h2>
+          <p className="admin-text">
+            Here you&apos;ll be able to adjust story style, background colors,
+            fonts, and more. For now, this area is only a placeholder so the
+            overall structure is ready.
+          </p>
         </section>
-      </div>
+      </main>
     </div>
   );
 }
