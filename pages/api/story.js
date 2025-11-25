@@ -1,11 +1,6 @@
 // pages/api/story.js
 import OpenAI from "openai";
 
-// OpenAI 클라이언트 생성 (서버에서만 사용)
-const client = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
-
 export default async function handler(req, res) {
   // 1) GET: 상태 확인용 (브라우저에서 직접 쳐볼 수 있는 헬스 체크)
   if (req.method === "GET") {
@@ -31,7 +26,12 @@ export default async function handler(req, res) {
       .json({ error: "OPENAI_API_KEY is not set on the server." });
   }
 
-  // 4) 요청 바디 파싱
+  // 4) 여기서 OpenAI 클라이언트 생성 (POST에서만 사용)
+  const client = new OpenAI({
+    apiKey: process.env.OPENAI_API_KEY,
+  });
+
+  // 5) 요청 바디 파싱
   const { words = [], mustUse = [], answers = {}, length = "normal" } =
     req.body || {};
 
@@ -45,7 +45,7 @@ export default async function handler(req, res) {
   const { mainCharacter = "", place = "", problem = "", ending = "" } =
     answers || {};
 
-  // 5) 프롬프트 구성
+  // 6) 프롬프트 구성
   const lengthText =
     length === "short"
       ? "about 5 short sentences"
@@ -81,7 +81,7 @@ Do NOT add any Korean translation. Only the English story.
   `.trim();
 
   try {
-    // 6) OpenAI 호출
+    // 7) OpenAI 호출
     const completion = await client.chat.completions.create({
       model: "gpt-4.1-mini",
       messages: [
