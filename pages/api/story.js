@@ -1,8 +1,12 @@
 // pages/api/story.js
 import OpenAI from "openai";
 
+const client = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY,
+});
+
 export default async function handler(req, res) {
-  // 1) GET: 상태 확인용 (브라우저에서 직접 쳐볼 수 있는 헬스 체크)
+  // GET: health check
   if (req.method === "GET") {
     return res.status(200).json({
       ok: true,
@@ -11,7 +15,7 @@ export default async function handler(req, res) {
     });
   }
 
-  // 2) POST 이외의 메서드는 405로 막기
+  // Only allow POST for story generation
   if (req.method !== "POST") {
     res.setHeader("Allow", ["GET", "POST"]);
     return res
@@ -19,21 +23,13 @@ export default async function handler(req, res) {
       .json({ error: `Method ${req.method} Not Allowed (use POST)` });
   }
 
-  // 3) 환경변수 체크
   if (!process.env.OPENAI_API_KEY) {
     return res
       .status(500)
       .json({ error: "OPENAI_API_KEY is not set on the server." });
   }
 
-  // 4) 여기서 OpenAI 클라이언트 생성 (POST에서만 사용)
-  const client = new OpenAI({
-    apiKey: process.env.OPENAI_API_KEY,
-  });
-
-  // 5) 요청 바디 파싱
-  const { words = [], mustUse = [], answers = {}, length = "normal" } =
-    req.body || {};
+  const { words = [], mustUse = [], answers = {} } = req.body || {};
 
   if (!Array.isArray(words) || words.length === 0) {
     return res
@@ -42,57 +38,65 @@ export default async function handler(req, res) {
   }
 
   const safeMustUse = Array.isArray(mustUse) ? mustUse : [];
-  const { mainCharacter = "", place = "", problem = "", ending = "" } =
-    answers || {};
+  const { mainCharacter = "", place = "", event = "" } = answers || {};
 
-  // 6) 프롬프트 구성
+  if (!mainCharacter || !place || !event) {
+    return res.status(400).json({
+      error:
+        "answers.mainCharacter, answers.place, and answers.event are required.",
+    });
+  }
+
+  // Decide story length based on number of words
+  const lengthCategory = words.length <= 5 ? "normal" : "long";
   const lengthText =
-    length === "short"
-      ? "about 5 short sentences"
-      : length === "long"
-      ? "about 12–15 short sentences"
-      : "about 8–10 short sentences";
+    lengthCategory === "normal"
+      ? "about 5–7 short sentences"
+      : "about 9–12 short sentences";
 
   const wordsText = words.join(", ");
   const mustText =
     safeMustUse.length > 0 ? safeMustUse.join(", ") : "no specific word";
 
   const ideaSummary = [
-    mainCharacter && `Main character: ${mainCharacter}`,
-    place && `Place: ${place}`,
-    problem && `Event/problem: ${problem}`,
-    ending && `Ending: ${ending}`,
-  ]
-    .filter(Boolean)
-    .join("\n");
+    `Main character: ${mainCharacter}`,
+    `Place: ${place}`,
+    `Event/problem: ${event}`,
+  ].join("\n");
 
   const userPrompt = `
-You are a friendly English teacher writing super-simple English stories for young Korean children.
+You are a warm, playful English story writer for very young children (ages 3–7) who are just starting to read.
 
-Use these English words in the story: ${wordsText}
-Make sure you include these must-use words: ${mustText}
+TASK:
+- Write a short picture-book style story in VERY SIMPLE English.
+- Use these English words somewhere in the story: ${wordsText}.
+- Strongly try to include these must-use words: ${mustText}.
+- Follow this idea from the parent/child:
+${ideaSummary}
 
-Story idea (from parent/child):
-${ideaSummary || "(no extra details provided)"}
-
-Write the story in very easy English, ${lengthText}.
-Use short sentences that a young learner can read.
-Do NOT add any Korean translation. Only the English story.
-  `.trim();
+STYLE RULES:
+- ${lengthText}.
+- Use simple sentences with clear subjects and verbs.
+- The story should feel like a children's picture book or cartoon.
+- Include at least two moments of gentle imagination (for example: talking animals, magic doors, brave toys, tiny fairies, friendly monsters, etc.).
+- Add some emotional words (happy, excited, scared, surprised, proud).
+- Keep everything safe, kind, and positive.
+- End with a clearly happy and comforting ending.
+- Do NOT add any Korean or Chinese translation. Only output the English story text.
+`.trim();
 
   try {
-    // 7) OpenAI 호출
     const completion = await client.chat.completions.create({
       model: "gpt-4.1-mini",
       messages: [
         {
           role: "system",
           content:
-            "You write very simple English stories for children who are just starting to read.",
+            "You write very simple, kind, and imaginative English stories for young children who are beginning readers.",
         },
         { role: "user", content: userPrompt },
       ],
-      temperature: 0.8,
+      temperature: 0.9,
     });
 
     const story =
