@@ -1,147 +1,160 @@
 // pages/index.js
-import { useState, useMemo } from "react";
+import { useState } from "react";
 
 const TEXTS = {
   en: {
-    langLabel: "Language",
-    langShort: "EN",
-    pageTitle: "AI Storybook – Create an English story with today's words",
-    pageSubtitle:
+    langLabel: "EN",
+    appTitle: "AI Storybook – Create an English story with today's words",
+    appSubtitle:
       "Type the English words your child learned today and build a fun, very simple story for ages 3–7.",
     step1Tag: "STEP 1 · Today’s words",
     step1Title: "Write today’s English words",
-    step1Desc:
+    step1Description:
       "Type the English words from today’s class / homework / book. Use commas (,) or line breaks. The words will turn into little chips.",
-    wordsPlaceholder: "e.g. apple, banana, cat, dog",
-    chipsHelpTitle: "Word chips",
-    chipsHelpBody:
-      "Click a word to mark it as ★ must-use. These words are strongly requested in the story.",
-    chipsEmpty: "No words yet. Type above and click outside the box.",
+    step1TextareaLabel: "Write today’s English words",
+    chipsLabel:
+      "Word chips · Click a word to mark it as ★ must-use. These words are strongly requested in the story.",
+    lengthHintPrefix: "Based on the number of words, this story will be about",
+    lengthHintNormalSuffix: "5–7 short sentences.",
+    lengthHintLongSuffix: "9–12 short sentences.",
     step2Tag: "STEP 2 · Story idea",
     step2Title: "Create a story idea with your child",
-    step2Desc:
+    step2Description:
       "Ask your child in your own language, then write short English phrases here. The English does not have to be perfect.",
     q1Label: "1) Who is the main character?",
-    q1Help: "Name the main character. It can be your child, a pet, or a fun character.",
-    q1Placeholder: "e.g. a little girl named Mina",
+    q1Help:
+      "Name the main character. It can be your child, a pet, or a fun character.",
+    q1Placeholder: "e.g. a brave girl named Yujin",
     q2Label: "2) Where does the story happen?",
     q2Help:
       "Choose a simple place like “in the park”, “in the yard”, or “in the kitchen”.",
-    q2Placeholder: "e.g. in a small park near her house",
+    q2Placeholder: "e.g. in the yard with a cat and a dog",
     q3Label: "3) What happens in the story?",
     q3Help:
       "Describe a small problem or event. For example: a lost toy, a surprise guest, or trying something new.",
-    q3Placeholder: "e.g. she loses her red ball and meets a talking cat",
+    q3Placeholder: "e.g. they find a magic ship and go on a short trip",
     createButton: "Create story",
-    creatingButton: "Creating story...",
-    errorNoWords: "Please enter at least one English word in STEP 1.",
-    errorNoAnswers: "Please fill all 3 questions in STEP 2 with simple English.",
-    resultTag: "STEP 3 · Result",
-    resultTitle: "Your child’s own AI story",
-    resultPlaceholder:
-      'After filling the steps and clicking "Create story", a very simple English story will appear here.',
-    adminNoteTitle: "Admin note",
-    adminNoteBody:
-      "This page is a small Next.js project that exposes only the /api/story endpoint. Later you can connect this API from Framer, Figma, or other apps.",
-    errorGeneric: "Failed to create story.",
-    lengthHintNormal:
-      "Based on the number of words, this story will be about 5–7 short sentences.",
-    lengthHintLong:
-      "Based on the number of words, this story will be about 9–12 short sentences.",
+    step3Tag: "STEP 3 · Result",
+    step3Title: "Generated story for your child",
+    step3Empty:
+      'Fill in the steps above and press "Create story". A very simple English story will appear here.',
+    errorPrefix: "",
+    wordCountLabel: (count) =>
+      count === 0
+        ? "No words yet."
+        : `You added ${count} word${count > 1 ? "s" : ""}.`,
   },
   ko: {
-    langLabel: "언어",
-    langShort: "KO",
-    pageTitle: "AI Storybook – 오늘 배운 단어로 영어 동화 만들기",
-    pageSubtitle:
+    langLabel: "KO",
+    appTitle: "AI Storybook – 오늘 배운 단어로 영어 동화 만들기",
+    appSubtitle:
       "아이와 함께 오늘 배운 영어 단어를 넣고, 3–7세 아이를 위한 아주 쉬운 영어 동화를 만들어 보세요.",
     step1Tag: "STEP 1 · Today’s words",
     step1Title: "오늘 배운 영어 단어 적기",
-    step1Desc:
+    step1Description:
       "오늘 수업·숙제·책에서 등장한 영어 단어를 적어 주세요. 쉼표(,)나 줄바꿈으로 구분하면 단어 칩이 자동으로 만들어집니다.",
-    wordsPlaceholder: "예) apple, banana, cat, dog",
-    chipsHelpTitle: "Word chips (단어 칩)",
-    chipsHelpBody:
-      "단어 칩을 클릭하면 ★ 표시가 생기며, 동화 속에 꼭 들어갔으면 하는 단어로 표시됩니다.",
-    chipsEmpty: "아직 단어가 없습니다. 위 입력창에 단어를 적고 바깥을 클릭해 보세요.",
+    step1TextareaLabel: "오늘 배운 영어 단어 적기",
+    chipsLabel:
+      "Word chips (단어 칩) · 단어 칩을 클릭하면 ★ 표시가 생기며, 동화 속에 꼭 들어갔으면 하는 단어로 표시됩니다.",
+    lengthHintPrefix: "입력된 단어 개수 기준으로",
+    lengthHintNormalSuffix: "5–7문장 정도의 짧은 동화가 생성됩니다.",
+    lengthHintLongSuffix: "9–12문장 정도의 조금 긴 동화가 생성됩니다.",
     step2Tag: "STEP 2 · Story idea",
     step2Title: "아이와 함께 스토리 아이디어 만들기",
-    step2Desc:
-      "아이에게 한국어나 모국어로 질문하고, 부모가 간단한 영어 문장으로 대신 적어 줘도 됩니다. 완벽한 문장이 아니어도 괜찮습니다.",
+    step2Description:
+      "아이에게 한국어로 물어보고, 부모가 간단한 영어 문장으로 대신 적어 줘도 됩니다. 완벽한 문장이 아니어도 괜찮습니다.",
     q1Label: "1) Who is the main character?",
-    q1Help: "주인공을 정해 주세요. 아이 이름, 반려동물, 상상 속 캐릭터 모두 괜찮아요.",
-    q1Placeholder: "예) a little girl named Mina",
+    q1Help:
+      "주인공을 정해 주세요. 아이 이름, 반려동물, 상상 속 캐릭터 모두 괜찮아요.",
+    q1Placeholder: "예: a brave girl named Yujin",
     q2Label: "2) Where does the story happen?",
-    q2Help: "“in the park”, “in the yard”, “in the kitchen” 처럼 간단한 장소를 적어 주세요.",
-    q2Placeholder: "예) in a small park near her house",
+    q2Help:
+      "“in the park”, “in the yard”, “in the kitchen” 처럼 간단한 장소를 적어 주세요.",
+    q2Placeholder: "예: in the yard with a cat and a dog",
     q3Label: "3) What happens in the story?",
     q3Help:
       "작은 사건이나 문제를 적어 주세요. 예: 잃어버린 장난감, 깜짝 손님, 처음 해보는 도전 등.",
-    q3Placeholder: "예) she loses her red ball and meets a talking cat",
+    q3Placeholder: "예: they find a magic ship and go on a short trip",
     createButton: "Create story",
-    creatingButton: "스토리 생성 중...",
-    errorNoWords: "STEP 1에 오늘 배운 영어 단어를 한 가지 이상 입력해 주세요.",
-    errorNoAnswers: "STEP 2의 세 가지 질문을 모두 간단한 영어로 채워 주세요.",
-    resultTag: "STEP 3 · Result",
-    resultTitle: "AI가 만든 우리 아이 전용 동화",
-    resultPlaceholder:
+    step3Tag: "STEP 3 · Result",
+    step3Title: "AI가 만든 우리 아이 전용 동화",
+    step3Empty:
       '"Create story" 버튼을 누르면, 여기 아주 쉬운 영어 동화가 나타납니다.',
-    adminNoteTitle: "Admin note",
-    adminNoteBody:
-      "이 페이지는 /api/story 엔드포인트 하나만 사용하는 간단한 Next.js 프로젝트입니다. 나중에 Framer, Figma, 다른 앱에서 이 API만 따로 연결해서 써도 됩니다.",
-    errorGeneric: "스토리 생성에 실패했습니다.",
-    lengthHintNormal: "입력된 단어 개수 기준으로 5–7문장 정도의 짧은 동화가 생성됩니다.",
-    lengthHintLong: "입력된 단어 개수 기준으로 9–12문장 정도의 긴 동화가 생성됩니다.",
+    errorPrefix: "",
+    wordCountLabel: (count) =>
+      count === 0
+        ? "아직 입력된 단어가 없습니다."
+        : `지금까지 ${count}개의 단어가 들어갔어요.`,
   },
   zh: {
-    langLabel: "语言",
-    langShort: "中文",
-    pageTitle: "AI Storybook – 用今天学到的单词写英语故事",
-    pageSubtitle:
-      "输入孩子今天学到的英文单词，为 3–7 岁儿童生成一个非常简单、有趣的英文故事。",
+    langLabel: "中文",
+    appTitle: "AI Storybook – 用今天学到的单词写一个英文故事",
+    appSubtitle:
+      "输入孩子今天学到的英文单词，为 3–7 岁孩子生成一个简单、有趣的英文故事。",
     step1Tag: "STEP 1 · Today’s words",
-    step1Title: "写下今天学到的英语单词",
-    step1Desc:
-      "输入今天在课堂 / 作业 / 书里出现的英语单词。用逗号(,)或换行分隔，系统会自动生成小标签。",
-    wordsPlaceholder: "例如：apple, banana, cat, dog",
-    chipsHelpTitle: "单词标签",
-    chipsHelpBody:
-      "点击标签可以标记为★，这些单词会被优先放进故事里。",
-    chipsEmpty: "还没有单词。请在上面的输入框里输入单词，然后点击空白处。",
+    step1Title: "写下今天学到的英文单词",
+    step1Description:
+      "输入今天在课堂 / 作业 / 书里出现的英文单词。用逗号(,) 或换行分隔，单词会自动变成小标签。",
+    step1TextareaLabel: "写下今天学到的英文单词",
+    chipsLabel:
+      "Word chips · 点击单词可以标记为 ★ 必须使用，在故事中会尽量包含这些单词。",
+    lengthHintPrefix: "根据单词数量，本故事大约会有",
+    lengthHintNormalSuffix: "5–7 句短句。",
+    lengthHintLongSuffix: "9–12 句较长的故事。",
     step2Tag: "STEP 2 · Story idea",
     step2Title: "和孩子一起想一个故事点子",
-    step2Desc:
-      "可以用母语和孩子交流，再用简单英文写下来。英文不需要完美，只要意思对就可以。",
+    step2Description:
+      "可以先用母语和孩子聊天，然后用简单英文写在这里。句子不需要完美。",
     q1Label: "1) Who is the main character?",
-    q1Help: "决定主角，可以是孩子、宠物，或一个有趣的角色。",
-    q1Placeholder: "例如：a little girl named Mina",
+    q1Help: "写出主角，可以是孩子自己、宠物，或有趣的角色。",
+    q1Placeholder: "e.g. a brave girl named Yujin",
     q2Label: "2) Where does the story happen?",
-    q2Help: "选择一个简单的地点，例如 “in the park”, “in the yard”, “in the kitchen”。",
-    q2Placeholder: "例如：in a small park near her house",
+    q2Help: "写一个简单的地点，例如 “in the park”“in the yard”“in the kitchen”。",
+    q2Placeholder: "e.g. in the yard with a cat and a dog",
     q3Label: "3) What happens in the story?",
     q3Help:
-      "写一个小事件或问题，例如：丢失的玩具、突然出现的客人、第一次尝试做某件事等。",
-    q3Placeholder: "例如：she loses her red ball and meets a talking cat",
-    createButton: "生成故事",
-    creatingButton: "生成中...",
-    errorNoWords: "请在 STEP 1 输入至少一个英文单词。",
-    errorNoAnswers: "请在 STEP 2 的三个问题中都写上简单的英文句子。",
-    resultTag: "STEP 3 · Result",
-    resultTitle: "属于孩子的 AI 英语故事",
-    resultPlaceholder:
-      "完成上面的步骤并点击“生成故事”后，这里会出现一篇非常简单的英文故事。",
-    adminNoteTitle: "Admin note",
-    adminNoteBody:
-      "此页面是一个只暴露 /api/story 接口的小型 Next.js 项目。以后可以在 Framer、Figma 或其他应用里直接调用这个 API。",
-    errorGeneric: "生成故事失败。",
-    lengthHintNormal: "根据单词数量，本次故事大约为 5–7 句短句。",
-    lengthHintLong: "根据单词数量，本次故事大约为 9–12 句短句。",
+      "写一个小事件，例如：丢失的玩具、突然来访的客人、尝试新事情等。",
+    q3Placeholder: "e.g. they find a magic ship and go on a short trip",
+    createButton: "Create story",
+    step3Tag: "STEP 3 · Result",
+    step3Title: "为孩子生成的英文故事",
+    step3Empty:
+      '完成上面的内容后点击 “Create story”，故事就会显示在这里。',
+    errorPrefix: "",
+    wordCountLabel: (count) =>
+      count === 0
+        ? "还没有单词。"
+        : `你已经输入了 ${count} 个单词。`,
   },
 };
 
+const theme = {
+  bg: "#FFF7ED",
+  card: "#FFFFFF",
+  step1Card: "#FFEFD9",
+  step2Card: "#E6F7FB",
+  step3Card: "#F5ECFF",
+  accent: "#FF8A3C",
+  accentSoft: "#FFE1C4",
+  borderSoft: "#F1E0D1",
+  textMain: "#32261A",
+  textSub: "#6B6158",
+  chipBg: "#FFF9F3",
+  chipBorder: "#F0C9A8",
+  chipActiveBg: "#FFE4BF",
+  chipActiveBorder: "#FF9F42",
+};
+
+function computeLengthFromWords(words) {
+  const count = words.length;
+  if (count === 0) return "normal";
+  if (count <= 5) return "normal";
+  return "long"; // 6개 이상이면 long
+}
+
 export default function Home() {
-  const [language, setLanguage] = useState("en");
-  const t = useMemo(() => TEXTS[language], [language]);
+  const [lang, setLang] = useState("ko"); // 기본 KO
+  const t = TEXTS[lang];
 
   const [wordsInput, setWordsInput] = useState("");
   const [words, setWords] = useState([]);
@@ -149,16 +162,15 @@ export default function Home() {
   const [answers, setAnswers] = useState({
     mainCharacter: "",
     place: "",
-    event: "",
+    problem: "",
   });
   const [story, setStory] = useState("");
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
 
-  // STEP 1: parse words into chips
   const handleWordsBlur = () => {
     const parts = wordsInput
-      .split(/[,|\n]/)
+      .split(/[,\\n]/)
       .map((w) => w.trim())
       .filter((w) => w.length > 0);
 
@@ -172,19 +184,10 @@ export default function Home() {
     );
   };
 
-  // STEP 2: answers
   const handleAnswerChange = (field, value) => {
     setAnswers((prev) => ({ ...prev, [field]: value }));
   };
 
-  // length hint (normal / long) based on words count
-  const lengthHint = useMemo(() => {
-    if (words.length === 0) return "";
-    if (words.length <= 5) return t.lengthHintNormal;
-    return t.lengthHintLong;
-  }, [words.length, t]);
-
-  // Create story
   const handleCreateStory = async () => {
     setErrorMsg("");
     setStory("");
@@ -192,18 +195,32 @@ export default function Home() {
     const trimmedWords = words.map((w) => w.trim()).filter(Boolean);
 
     if (trimmedWords.length === 0) {
-      setErrorMsg(t.errorNoWords);
+      setErrorMsg(
+        lang === "ko"
+          ? "먼저 오늘 배운 영어 단어를 입력해 주세요."
+          : lang === "zh"
+          ? "请先输入今天学到的英文单词。"
+          : "Please enter today’s English words first."
+      );
       return;
     }
 
     if (
       !answers.mainCharacter.trim() ||
       !answers.place.trim() ||
-      !answers.event.trim()
+      !answers.problem.trim()
     ) {
-      setErrorMsg(t.errorNoAnswers);
+      setErrorMsg(
+        lang === "ko"
+          ? "STEP 2의 세 가지 질문을 모두 간단히 채워 주세요."
+          : lang === "zh"
+          ? "请先填写完 STEP 2 里的三个问题。"
+          : "Please answer all three questions in STEP 2."
+      );
       return;
     }
+
+    const inferredLength = computeLengthFromWords(trimmedWords);
 
     try {
       setLoading(true);
@@ -215,109 +232,285 @@ export default function Home() {
           words: trimmedWords,
           mustUse,
           answers,
+          length: inferredLength,
         }),
       });
 
+      const data = await res.json();
+
       if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        throw new Error(data.error || t.errorGeneric);
+        throw new Error(data.error || "Failed to create story.");
       }
 
-      const data = await res.json();
       setStory(data.story || "");
     } catch (e) {
       console.error(e);
-      setErrorMsg(e.message || t.errorGeneric);
+      setErrorMsg(
+        (t.errorPrefix || "") +
+          (e.message ||
+            (lang === "ko"
+              ? "알 수 없는 오류가 발생했습니다."
+              : lang === "zh"
+              ? "发生未知错误。"
+              : "Unknown error occurred."))
+      );
     } finally {
       setLoading(false);
     }
   };
 
-  return (
-    <div className="app-root">
-      <div className="app-card">
-        {/* Language switcher */}
-        <div className="app-top-bar">
-          <div className="app-brand">MHJ Storybook</div>
-          <div className="lang-switcher" aria-label={t.langLabel}>
-            <button
-              type="button"
-              className={language === "en" ? "lang-btn active" : "lang-btn"}
-              onClick={() => setLanguage("en")}
-            >
-              EN
-            </button>
-            <button
-              type="button"
-              className={language === "ko" ? "lang-btn active" : "lang-btn"}
-              onClick={() => setLanguage("ko")}
-            >
-              KO
-            </button>
-            <button
-              type="button"
-              className={language === "zh" ? "lang-btn active" : "lang-btn"}
-              onClick={() => setLanguage("zh")}
-            >
-              中文
-            </button>
-          </div>
-        </div>
+  const wordCount = words.length;
+  const inferredLength = computeLengthFromWords(words);
 
-        {/* Header */}
-        <header className="app-header">
-          <span className="app-tag">AI Storybook</span>
-          <h1 className="app-title">{t.pageTitle}</h1>
-          <p className="app-sub">{t.pageSubtitle}</p>
+  return (
+    <div
+      style={{
+        minHeight: "100vh",
+        background: theme.bg,
+        padding: "32px 16px 40px",
+        display: "flex",
+        justifyContent: "center",
+      }}
+    >
+      <div
+        style={{
+          width: "100%",
+          maxWidth: 880,
+          background: theme.card,
+          borderRadius: 24,
+          boxShadow: "0 18px 55px rgba(0,0,0,0.08)",
+          padding: 28,
+        }}
+      >
+        {/* 헤더 */}
+        <header
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "flex-start",
+            marginBottom: 24,
+            gap: 16,
+          }}
+        >
+          <div>
+            <div
+              style={{
+                fontSize: 14,
+                fontWeight: 700,
+                letterSpacing: "0.08em",
+                color: theme.accent,
+                marginBottom: 6,
+              }}
+            >
+              MHJ STORYBOOK
+            </div>
+            <h1
+              style={{
+                fontSize: 26,
+                lineHeight: 1.3,
+                margin: 0,
+                color: theme.textMain,
+              }}
+            >
+              {t.appTitle}
+            </h1>
+            <p
+              style={{
+                marginTop: 6,
+                fontSize: 15,
+                lineHeight: 1.5,
+                color: theme.textSub,
+                maxWidth: 640,
+              }}
+            >
+              {t.appSubtitle}
+            </p>
+          </div>
+
+          {/* 언어 토글 */}
+          <div
+            style={{
+              display: "inline-flex",
+              borderRadius: 999,
+              border: "1px solid #E3D3C3",
+              padding: 3,
+              background: "#FFF9F3",
+              gap: 3,
+              alignSelf: "flex-start",
+            }}
+          >
+            {["en", "ko", "zh"].map((code) => {
+              const active = lang === code;
+              return (
+                <button
+                  key={code}
+                  type="button"
+                  onClick={() => setLang(code)}
+                  style={{
+                    minWidth: 40,
+                    padding: "6px 10px",
+                    borderRadius: 999,
+                    border: "none",
+                    fontSize: 13,
+                    fontWeight: 600,
+                    cursor: "pointer",
+                    background: active ? theme.accent : "transparent",
+                    color: active ? "#FFFFFF" : "#7A6755",
+                    boxShadow: active
+                      ? "0 2px 6px rgba(0,0,0,0.15)"
+                      : "none",
+                  }}
+                >
+                  {TEXTS[code].langLabel}
+                </button>
+              );
+            })}
+          </div>
         </header>
 
         {/* STEP 1 */}
-        <section className="step-card step-card-words">
-          <div className="step-header">
-            <span className="step-label">{t.step1Tag}</span>
-            <h2 className="step-title">{t.step1Title}</h2>
-            <p className="step-desc">{t.step1Desc}</p>
+        <section
+          style={{
+            borderRadius: 20,
+            padding: 20,
+            background: theme.step1Card,
+            border: `1px solid ${theme.borderSoft}`,
+            marginBottom: 20,
+          }}
+        >
+          <div
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              padding: "5px 10px",
+              borderRadius: 999,
+              background: theme.accentSoft,
+              color: theme.accent,
+              fontSize: 12,
+              fontWeight: 700,
+              marginBottom: 8,
+            }}
+          >
+            {t.step1Tag}
           </div>
-
-          <label className="field-label" htmlFor="words-area">
+          <h2
+            style={{
+              fontSize: 20,
+              margin: "0 0 4px",
+              color: theme.textMain,
+            }}
+          >
             {t.step1Title}
+          </h2>
+          <p
+            style={{
+              margin: "0 0 14px",
+              fontSize: 15,
+              lineHeight: 1.5,
+              color: theme.textSub,
+            }}
+          >
+            {t.step1Description}
+          </p>
+
+          <label
+            style={{
+              display: "block",
+              fontSize: 14,
+              marginBottom: 6,
+              color: theme.textMain,
+              fontWeight: 600,
+            }}
+          >
+            {t.step1TextareaLabel}
           </label>
           <textarea
-            id="words-area"
-            className="textarea"
             value={wordsInput}
             onChange={(e) => setWordsInput(e.target.value)}
             onBlur={handleWordsBlur}
-            placeholder={t.wordsPlaceholder}
+            rows={4}
+            placeholder="apple, banana, princess, ship"
+            style={{
+              width: "100%",
+              resize: "vertical",
+              padding: 12,
+              borderRadius: 14,
+              border: "1px solid #E3D3C3",
+              fontSize: 15,
+              lineHeight: 1.5,
+              outline: "none",
+              boxSizing: "border-box",
+            }}
           />
 
-          <div className="chips-section">
-            <div className="chips-help">
-              {t.chipsHelpTitle}
-              <span className="chips-help-sub"> · {t.chipsHelpBody}</span>
+          {/* 칩 & 길이 힌트 */}
+          <div style={{ marginTop: 12 }}>
+            <div
+              style={{
+                fontSize: 14,
+                color: theme.textMain,
+                marginBottom: 4,
+              }}
+            >
+              {t.chipsLabel}
             </div>
-            {lengthHint && (
-              <div className="chips-note">
-                <span className="star">●</span> {lengthHint}
-              </div>
-            )}
-            <div className="chips-row">
+            <div
+              style={{
+                fontSize: 13,
+                color: theme.textSub,
+                marginBottom: 6,
+              }}
+            >
+              {t.wordCountLabel(wordCount)}{" "}
+              {wordCount > 0 && (
+                <>
+                  · {t.lengthHintPrefix}{" "}
+                  <strong>
+                    {inferredLength === "normal"
+                      ? t.lengthHintNormalSuffix
+                      : t.lengthHintLongSuffix}
+                  </strong>
+                </>
+              )}
+            </div>
+
+            <div
+              style={{
+                display: "flex",
+                flexWrap: "wrap",
+                gap: 8,
+                minHeight: 32,
+                alignItems: "center",
+              }}
+            >
               {words.length === 0 && (
-                <span className="chips-empty">{t.chipsEmpty}</span>
+                <span style={{ fontSize: 13, color: "#B0A49A" }}>
+                  apple, banana 처럼 입력한 뒤 바깥을 클릭해 보세요.
+                </span>
               )}
               {words.map((w) => {
                 const isMust = mustUse.includes(w);
                 return (
                   <button
-                    type="button"
                     key={w}
-                    className={
-                      isMust ? "chip chip-selected" : "chip chip-normal"
-                    }
+                    type="button"
                     onClick={() => toggleMustUse(w)}
+                    style={{
+                      padding: "6px 12px",
+                      borderRadius: 999,
+                      border: `1px solid ${
+                        isMust ? theme.chipActiveBorder : theme.chipBorder
+                      }`,
+                      background: isMust ? theme.chipActiveBg : theme.chipBg,
+                      fontSize: 14,
+                      cursor: "pointer",
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: 4,
+                    }}
                   >
-                    {isMust && <span className="chip-star">★</span>}
-                    <span className="chip-text">{w}</span>
+                    {isMust && <span>★</span>}
+                    <span>{w}</span>
                   </button>
                 );
               })}
@@ -326,90 +519,260 @@ export default function Home() {
         </section>
 
         {/* STEP 2 */}
-        <section className="step-card step-card-story">
-          <div className="step-header">
-            <span className="step-label">{t.step2Tag}</span>
-            <h2 className="step-title">{t.step2Title}</h2>
-            <p className="step-desc">{t.step2Desc}</p>
+        <section
+          style={{
+            borderRadius: 20,
+            padding: 20,
+            background: theme.step2Card,
+            border: "1px solid #D2E7F1",
+            marginBottom: 20,
+          }}
+        >
+          <div
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              padding: "5px 10px",
+              borderRadius: 999,
+              background: "#D3F0F9",
+              color: "#2883A8",
+              fontSize: 12,
+              fontWeight: 700,
+              marginBottom: 8,
+            }}
+          >
+            {t.step2Tag}
           </div>
+          <h2
+            style={{
+              fontSize: 20,
+              margin: "0 0 4px",
+              color: theme.textMain,
+            }}
+          >
+            {t.step2Title}
+          </h2>
+          <p
+            style={{
+              margin: "0 0 14px",
+              fontSize: 15,
+              lineHeight: 1.5,
+              color: theme.textSub,
+            }}
+          >
+            {t.step2Description}
+          </p>
 
-          <div className="field-group">
-            <label className="field-label">{t.q1Label}</label>
-            <p className="field-help">{t.q1Help}</p>
+          {/* Q1 */}
+          <div style={{ marginBottom: 14 }}>
+            <label
+              style={{
+                display: "block",
+                fontSize: 15,
+                fontWeight: 600,
+                marginBottom: 4,
+                color: theme.textMain,
+              }}
+            >
+              {t.q1Label}
+            </label>
+            <div
+              style={{
+                fontSize: 13,
+                color: theme.textSub,
+                marginBottom: 4,
+              }}
+            >
+              {t.q1Help}
+            </div>
             <input
               type="text"
-              className="input"
               value={answers.mainCharacter}
               onChange={(e) =>
                 handleAnswerChange("mainCharacter", e.target.value)
               }
               placeholder={t.q1Placeholder}
+              style={inputStyle}
             />
           </div>
 
-          <div className="field-group">
-            <label className="field-label">{t.q2Label}</label>
-            <p className="field-help">{t.q2Help}</p>
+          {/* Q2 */}
+          <div style={{ marginBottom: 14 }}>
+            <label
+              style={{
+                display: "block",
+                fontSize: 15,
+                fontWeight: 600,
+                marginBottom: 4,
+                color: theme.textMain,
+              }}
+            >
+              {t.q2Label}
+            </label>
+            <div
+              style={{
+                fontSize: 13,
+                color: theme.textSub,
+                marginBottom: 4,
+              }}
+            >
+              {t.q2Help}
+            </div>
             <input
               type="text"
-              className="input"
               value={answers.place}
               onChange={(e) => handleAnswerChange("place", e.target.value)}
               placeholder={t.q2Placeholder}
+              style={inputStyle}
             />
           </div>
 
-          <div className="field-group">
-            <label className="field-label">{t.q3Label}</label>
-            <p className="field-help">{t.q3Help}</p>
+          {/* Q3 */}
+          <div style={{ marginBottom: 18 }}>
+            <label
+              style={{
+                display: "block",
+                fontSize: 15,
+                fontWeight: 600,
+                marginBottom: 4,
+                color: theme.textMain,
+              }}
+            >
+              {t.q3Label}
+            </label>
+            <div
+              style={{
+                fontSize: 13,
+                color: theme.textSub,
+                marginBottom: 4,
+              }}
+            >
+              {t.q3Help}
+            </div>
             <input
               type="text"
-              className="input"
-              value={answers.event}
-              onChange={(e) => handleAnswerChange("event", e.target.value)}
+              value={answers.problem}
+              onChange={(e) => handleAnswerChange("problem", e.target.value)}
               placeholder={t.q3Placeholder}
+              style={inputStyle}
             />
           </div>
 
-          <div className="button-row">
+          {/* 버튼 + 에러 */}
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 12,
+              flexWrap: "wrap",
+            }}
+          >
             <button
               type="button"
-              className="btn primary"
               onClick={handleCreateStory}
               disabled={loading}
+              style={{
+                padding: "10px 22px",
+                borderRadius: 999,
+                border: "none",
+                background: theme.accent,
+                color: "#FFFFFF",
+                fontSize: 16,
+                fontWeight: 700,
+                cursor: "pointer",
+                boxShadow: "0 4px 12px rgba(0,0,0,0.18)",
+                opacity: loading ? 0.75 : 1,
+              }}
             >
-              {loading ? t.creatingButton : t.createButton}
+              {loading ? "Creating..." : t.createButton}
             </button>
+            {errorMsg && (
+              <div
+                style={{
+                  fontSize: 13,
+                  color: "#C62828",
+                  maxWidth: 420,
+                }}
+              >
+                {errorMsg}
+              </div>
+            )}
           </div>
-
-          {errorMsg && <div className="error-msg">{errorMsg}</div>}
         </section>
 
-        {/* STEP 3: Result */}
-        <section className="step-card step-card-result">
-          <div className="step-header">
-            <span className="step-label">{t.resultTag}</span>
-            <h2 className="step-title">{t.resultTitle}</h2>
+        {/* STEP 3 */}
+        <section
+          style={{
+            borderRadius: 20,
+            padding: 20,
+            background: theme.step3Card,
+            border: "1px solid #E0D4FF",
+          }}
+        >
+          <div
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              padding: "5px 10px",
+              borderRadius: 999,
+              background: "#E3D6FF",
+              color: "#5A3AC2",
+              fontSize: 12,
+              fontWeight: 700,
+              marginBottom: 8,
+            }}
+          >
+            {t.step3Tag}
           </div>
+          <h2
+            style={{
+              fontSize: 20,
+              margin: "0 0 10px",
+              color: theme.textMain,
+            }}
+          >
+            {t.step3Title}
+          </h2>
 
-          {!story && !loading && (
-            <p className="placeholder">{t.resultPlaceholder}</p>
+          {!story && (
+            <p
+              style={{
+                fontSize: 15,
+                color: theme.textSub,
+                margin: 0,
+              }}
+            >
+              {t.step3Empty}
+            </p>
           )}
 
           {story && (
-            <div className="story-box">
-              <div className="story-tag">Generated story</div>
-              <p className="story-text">{story}</p>
+            <div
+              style={{
+                marginTop: 6,
+                padding: 16,
+                borderRadius: 16,
+                background: "#FFFFFF",
+                fontSize: 16,
+                lineHeight: 1.7,
+                whiteSpace: "pre-wrap",
+                border: "1px solid #E2D8FF",
+              }}
+            >
+              {story}
             </div>
           )}
-        </section>
-
-        {/* Admin note */}
-        <section className="admin-section">
-          <h3 className="admin-title">{t.adminNoteTitle}</h3>
-          <p className="admin-text">{t.adminNoteBody}</p>
         </section>
       </div>
     </div>
   );
 }
+
+const inputStyle = {
+  width: "100%",
+  padding: 11,
+  borderRadius: 14,
+  border: "1px solid #D6C7B8",
+  fontSize: 15,
+  boxSizing: "border-box",
+};
