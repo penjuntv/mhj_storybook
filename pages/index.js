@@ -14,6 +14,8 @@ const TEXTS = {
     step1TextareaLabel: "Write today’s English words",
     chipsLabel:
       "Word chips · Click a word to mark it as ★ must-use. These words are strongly requested in the story.",
+    chipEmptyHint:
+      "Type words like apple, banana and click outside the box to see the chips.",
     lengthHintPrefix: "Based on the number of words, this story will be about",
     lengthHintNormalSuffix: "5–7 short sentences.",
     lengthHintLongSuffix: "9–12 short sentences.",
@@ -56,6 +58,8 @@ const TEXTS = {
     step1TextareaLabel: "오늘 배운 영어 단어 적기",
     chipsLabel:
       "Word chips (단어 칩) · 단어 칩을 클릭하면 ★ 표시가 생기며, 동화 속에 꼭 들어갔으면 하는 단어로 표시됩니다.",
+    chipEmptyHint:
+      "apple, banana 처럼 입력한 뒤 바깥을 한 번 클릭해 보세요.",
     lengthHintPrefix: "입력된 단어 개수 기준으로",
     lengthHintNormalSuffix: "5–7문장 정도의 짧은 동화가 생성됩니다.",
     lengthHintLongSuffix: "9–12문장 정도의 조금 긴 동화가 생성됩니다.",
@@ -98,6 +102,8 @@ const TEXTS = {
     step1TextareaLabel: "写下今天学到的英文单词",
     chipsLabel:
       "Word chips · 点击单词可以标记为 ★ 必须使用，在故事中会尽量包含这些单词。",
+    chipEmptyHint:
+      "先输入 apple, banana 之类的单词，然后点击输入框外面，就会出现单词标签。",
     lengthHintPrefix: "根据单词数量，本故事大约会有",
     lengthHintNormalSuffix: "5–7 句短句。",
     lengthHintLongSuffix: "9–12 句较长的故事。",
@@ -143,6 +149,11 @@ const theme = {
   chipBorder: "#F0C9A8",
   chipActiveBg: "#FFE4BF",
   chipActiveBorder: "#FF9F42",
+  // 폰트 스택: 나중에 globals.css 등에서 실제 폰트만 불러오면 바로 적용됨
+  displayFont:
+    '"Textbook-Charlie", "Baloo 2", "Comic Neue", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
+  storyFont:
+    '"Flapstick DEMO", "Chocolate__G", "Comic Neue", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
 };
 
 function computeLengthFromWords(words) {
@@ -170,7 +181,8 @@ export default function Home() {
 
   const handleWordsBlur = () => {
     const parts = wordsInput
-      .split(/[,\\n]/)
+      // BUG FIX: 예전 /[,\\n]/ 은 'n' 문자까지 구분자로 인식해서 단어가 깨졌음
+      .split(/[,\n]/)
       .map((w) => w.trim())
       .filter((w) => w.length > 0);
 
@@ -300,23 +312,25 @@ export default function Home() {
                 letterSpacing: "0.08em",
                 color: theme.accent,
                 marginBottom: 6,
+                fontFamily: theme.displayFont,
               }}
             >
               MHJ STORYBOOK
             </div>
             <h1
               style={{
-                fontSize: 26,
-                lineHeight: 1.3,
+                fontSize: 28,
+                lineHeight: 1.25,
                 margin: 0,
                 color: theme.textMain,
+                fontFamily: theme.displayFont,
               }}
             >
               {t.appTitle}
             </h1>
             <p
               style={{
-                marginTop: 6,
+                marginTop: 8,
                 fontSize: 15,
                 lineHeight: 1.5,
                 color: theme.textSub,
@@ -359,6 +373,7 @@ export default function Home() {
                     boxShadow: active
                       ? "0 2px 6px rgba(0,0,0,0.15)"
                       : "none",
+                    fontFamily: theme.displayFont,
                   }}
                 >
                   {TEXTS[code].langLabel}
@@ -389,15 +404,17 @@ export default function Home() {
               fontSize: 12,
               fontWeight: 700,
               marginBottom: 8,
+              fontFamily: theme.displayFont,
             }}
           >
             {t.step1Tag}
           </div>
           <h2
             style={{
-              fontSize: 20,
+              fontSize: 21,
               margin: "0 0 4px",
               color: theme.textMain,
+              fontFamily: theme.displayFont,
             }}
           >
             {t.step1Title}
@@ -485,7 +502,7 @@ export default function Home() {
             >
               {words.length === 0 && (
                 <span style={{ fontSize: 13, color: "#B0A49A" }}>
-                  apple, banana 처럼 입력한 뒤 바깥을 클릭해 보세요.
+                  {t.chipEmptyHint}
                 </span>
               )}
               {words.map((w) => {
@@ -539,15 +556,17 @@ export default function Home() {
               fontSize: 12,
               fontWeight: 700,
               marginBottom: 8,
+              fontFamily: theme.displayFont,
             }}
           >
             {t.step2Tag}
           </div>
           <h2
             style={{
-              fontSize: 20,
+              fontSize: 21,
               margin: "0 0 4px",
               color: theme.textMain,
+              fontFamily: theme.displayFont,
             }}
           >
             {t.step2Title}
@@ -682,6 +701,7 @@ export default function Home() {
                 cursor: "pointer",
                 boxShadow: "0 4px 12px rgba(0,0,0,0.18)",
                 opacity: loading ? 0.75 : 1,
+                fontFamily: theme.displayFont,
               }}
             >
               {loading ? "Creating..." : t.createButton}
@@ -720,15 +740,17 @@ export default function Home() {
               fontSize: 12,
               fontWeight: 700,
               marginBottom: 8,
+              fontFamily: theme.displayFont,
             }}
           >
             {t.step3Tag}
           </div>
           <h2
             style={{
-              fontSize: 20,
+              fontSize: 21,
               margin: "0 0 10px",
               color: theme.textMain,
+              fontFamily: theme.displayFont,
             }}
           >
             {t.step3Title}
@@ -749,14 +771,15 @@ export default function Home() {
           {story && (
             <div
               style={{
-                marginTop: 6,
-                padding: 16,
-                borderRadius: 16,
+                marginTop: 8,
+                padding: 18,
+                borderRadius: 18,
                 background: "#FFFFFF",
-                fontSize: 16,
+                fontSize: 17,
                 lineHeight: 1.7,
                 whiteSpace: "pre-wrap",
                 border: "1px solid #E2D8FF",
+                fontFamily: theme.storyFont,
               }}
             >
               {story}
