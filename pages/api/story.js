@@ -1,5 +1,4 @@
 // pages/api/story.js
-
 import OpenAI from "openai";
 
 const client = new OpenAI({
@@ -7,65 +6,76 @@ const client = new OpenAI({
 });
 
 export default async function handler(req, res) {
-  // 1) 메서드 체크
   if (req.method !== "POST") {
     res.setHeader("Allow", ["POST"]);
-    return res.status(405).json({ error: "Method Not Allowed" });
+    return res.status(405).json({ error: "Method not allowed" });
   }
 
-  // 2) 바디 파싱
-  const { words, idea, length = "normal" } = req.body || {};
-
-  // words: ["apple", "banana", "cat"] 이런 배열
-  if (!Array.isArray(words) || words.length === 0) {
-    return res.status(400).json({
-      error: "words must be a non-empty array of strings.",
-    });
-  }
-
-  if (!idea || typeof idea !== "string") {
-    return res.status(400).json({
-      error: "idea (child's story idea) is required.",
-    });
-  }
-
-  // 3) API 키 확인
   if (!process.env.OPENAI_API_KEY) {
     return res
       .status(500)
       .json({ error: "OPENAI_API_KEY is not set on the server." });
   }
 
-  // 4) 프롬프트 구성
-  const mustUseWords = words.join(", ");
+  const { words, mustUse = [], answers = {}, length = "normal" } = req.body || {};
+
+  if (!Array.isArray(words) || words.length === 0) {
+    return res.status(400).json({ error: "words must be a non-empty array." });
+  }
+
+  const safeMustUse = mustUse.filter((w) => typeof w === "string" && w.trim());
+  const mustUseLine =
+    safeMustUse.length > 0
+      ? `You MUST include all of these words in the story: ${safeMustUse.join(
+          ", "
+        )}.`
+      : `Use as many of these words as natural: ${words.join(", ")}.`;
+
+  const { mainCharacter = "", place = "", problem = "", ending = "" } = answers;
 
   const lengthHint =
     length === "short"
-      ? "Write a very short story (3–4 sentences)."
+      ? "Write a very short story, about 4–6 sentences."
       : length === "long"
-      ? "Write a slightly longer story (6–8 short sentences)."
-      : "Write a short story (4–6 short sentences).";
+      ? "Write a longer story, about 10–14 short sentences."
+      : "Write a medium-length story, about 7–9 short sentences.";
 
-  const systemPrompt =
-    "You are an expert children's storyteller. " +
-    "Write VERY SIMPLE English stories for 6–9 year-old ESL learners (A1~A2 level). " +
-    "Use very short sentences (mostly 5–10 words). " +
-    "Avoid difficult grammar (no passive voice, no complex clauses). " +
-    "The story should be warm, kind, and emotionally safe.";
+  const systemPrompt = [
+    "You are an expert children's storyteller.",
+    "Write SHORT, CLEAR stories in very simple English (A1~A2 level, 6–9 year old ESL learners).",
+    "Use very short sentences (mostly 5–10 words).",
+    "Avoid difficult grammar (no passive voice, no complex clauses).",
+    "The story should be warm, kind, and emotionally safe.",
+    "The child is learning English as an immigrant in a new country.",
+  ].join(" ");
 
-  const userPrompt = `
-Child's idea:
-"${idea}"
+  const userPromptLines = [];
 
-Today's English words (must be used in the story):
-${mustUseWords}
+  userPromptLines.push(
+    `Today’s words: ${words.join(
+      ", "
+    )}. ${mustUseLine} Do NOT add Korean translations. Only English.`
+  );
 
-Instructions:
-- Use ALL of the must-use words above naturally in the story.
-- Keep the language very simple and clear.
-- ${lengthHint}
-- Write the story as one paragraph, with sentences separated by a single space.
-`;
+  if (mainCharacter) {
+    userPromptLines.push(`Main character: ${mainCharacter}`);
+  }
+  if (place) {
+    userPromptLines.push(`Place: ${place}`);
+  }
+  if (problem) {
+    userPromptLines.push(`What happens: ${problem}`);
+  }
+  if (ending) {
+    userPromptLines.push(`Ending: ${ending}`);
+  }
+
+  userPromptLines.push(lengthHint);
+  userPromptLines.push(
+    "Write the story as simple paragraphs, not as a list. Do not add a title."
+  );
+
+  const userPrompt = userPromptLines.join("\n");
 
   try {
     const completion = await client.chat.completions.create({
@@ -74,25 +84,20 @@ Instructions:
         { role: "system", content: systemPrompt },
         { role: "user", content: userPrompt },
       ],
-      temperature: 0.7,
+      temperature: 0.8,
+      max_tokens:
+        length === "short" ? 450 : length === "long" ? 800 : 600,
     });
 
     const story =
       completion.choices?.[0]?.message?.content?.trim() ||
-      "Story generation failed.";
+      "Sorry, I could not create a story.";
 
-    return res.status(200).json({
-      story,
-      debug: {
-        words,
-        idea,
-        length,
-      },
-    });
+    return res.status(200).json({ story });
   } catch (e) {
     console.error("Story API error:", e);
     return res.status(500).json({
-      error: "Failed to generate story.",
+      error: "Failed to create story.",
       detail: e?.message || String(e),
     });
   }
