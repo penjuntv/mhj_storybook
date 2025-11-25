@@ -1,0 +1,229 @@
+/* 전체 배경과 폰트 */
+html,
+body {
+  padding: 0;
+  margin: 0;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+    sans-serif;
+  background: #f7f3ee;
+  color: #222;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+/* 메인 레이아웃 */
+.page-root {
+  min-height: 100vh;
+  display: flex;
+  justify-content: center;
+  padding: 32px 16px;
+}
+
+.card-shell {
+  width: 100%;
+  max-width: 960px;
+  background: #fffaf5;
+  border-radius: 24px;
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.06);
+  padding: 32px 24px 40px;
+}
+
+/* 헤더 */
+.page-title {
+  font-size: 24px;
+  font-weight: 700;
+  margin-bottom: 4px;
+}
+
+.page-subtitle {
+  font-size: 14px;
+  color: #6b5b4c;
+  margin-bottom: 24px;
+}
+
+/* 스텝 공통 */
+.step-box {
+  background: #fff;
+  border-radius: 18px;
+  padding: 20px 20px 24px;
+  margin-bottom: 20px;
+  border: 1px solid #f1e4d7;
+}
+
+.step-label {
+  display: inline-flex;
+  align-items: center;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-weight: 600;
+  color: #b57b32;
+  background: #fff2dc;
+  padding: 4px 9px;
+  border-radius: 999px;
+  margin-bottom: 10px;
+}
+
+.step-title {
+  font-size: 17px;
+  font-weight: 600;
+  margin-bottom: 6px;
+}
+
+.step-caption {
+  font-size: 13px;
+  color: #7c6a5a;
+  margin-bottom: 12px;
+}
+
+/* 폼 요소 */
+.label-row {
+  font-size: 13px;
+  font-weight: 600;
+  margin: 10px 0 4px;
+}
+
+.label-help {
+  font-size: 12px;
+  color: #7c6a5a;
+}
+
+.textarea,
+.text-input {
+  width: 100%;
+  border-radius: 12px;
+  border: 1px solid #e0d2c4;
+  padding: 10px 12px;
+  font-size: 14px;
+  resize: vertical;
+  outline: none;
+  background: #fffbf7;
+}
+
+.textarea:focus,
+.text-input:focus {
+  border-color: #f49b4c;
+  box-shadow: 0 0 0 1px rgba(244, 155, 76, 0.35);
+}
+
+/* 워드칩 */
+.wordchips-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.wordchip {
+  padding: 6px 10px;
+  border-radius: 999px;
+  font-size: 13px;
+  border: 1px solid #e0d2c4;
+  background: #fff;
+  cursor: pointer;
+}
+
+.wordchip.must {
+  background: #ffe6c6;
+  border-color: #f49b4c;
+  color: #8a4d10;
+  font-weight: 600;
+}
+
+.wordchips-legend {
+  font-size: 11px;
+  color: #967b64;
+  margin-top: 4px;
+}
+
+/* 버튼 */
+.button-row {
+  display: flex;
+  gap: 8px;
+  margin-top: 16px;
+  flex-wrap: wrap;
+}
+
+.btn {
+  border-radius: 999px;
+  border: none;
+  padding: 9px 16px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.btn-primary {
+  background: #f49b4c;
+  color: #fff;
+}
+
+.btn-primary:hover {
+  background: #ec8a2e;
+}
+
+.btn-ghost {
+  background: #fff7ec;
+  color: #8a5a1b;
+}
+
+.btn-ghost:hover {
+  background: #ffe8c9;
+}
+
+.btn-small {
+  font-size: 13px;
+  padding: 6px 12px;
+}
+
+/* 스토리 출력 */
+.story-box {
+  background: #fff;
+  border-radius: 16px;
+  padding: 14px 14px 16px;
+  border: 1px solid #f1e4d7;
+  margin-top: 10px;
+}
+
+.story-version-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: #b57b32;
+  margin-bottom: 4px;
+}
+
+.story-text {
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+/* Admin */
+.admin-toggle {
+  margin-top: 24px;
+  border-top: 1px dashed #e0d2c4;
+  padding-top: 12px;
+}
+
+.admin-debug {
+  font-size: 11px;
+  color: #7c6a5a;
+  margin-top: 8px;
+}
+
+/* 반응형 */
+@media (max-width: 640px) {
+  .card-shell {
+    padding: 20px 14px 28px;
+    border-radius: 18px;
+  }
+
+  .page-title {
+    font-size: 20px;
+  }
+}
