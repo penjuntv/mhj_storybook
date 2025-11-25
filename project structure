@@ -1,0 +1,10 @@
+package.json
+next.config.mjs
+pages/
+  index.js
+  api/
+    story.js
+public/
+  favicon.ico   (있으면 좋고, 없어도 동작)
+styles/
+  globals.css
