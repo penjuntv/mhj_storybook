@@ -1,5 +1,6 @@
 // pages/index.js
 import { useState } from "react";
+import { WORD_CARDS, LETTER_IMAGES } from "../data/wordCards";
 
 const TEXTS = {
   en: {
@@ -14,11 +15,12 @@ const TEXTS = {
     step1TextareaLabel: "Write today’s English words",
     chipsLabel:
       "Word chips · Click a word to mark it as ★ must-use. These words are strongly requested in the story.",
-    chipEmptyHint:
-      "Type words like apple, banana and click outside the box to see the chips.",
     lengthHintPrefix: "Based on the number of words, this story will be about",
     lengthHintNormalSuffix: "5–7 short sentences.",
     lengthHintLongSuffix: "9–12 short sentences.",
+    // 새로 추가된 문구
+    letterPickerLabel: "Quick pick from A–Z word cards:",
+    letterWordsTitle: (letter) => `Words starting with "${letter}"`,
     step2Tag: "STEP 2 · Story idea",
     step2Title: "Create a story idea with your child",
     step2Description:
@@ -58,11 +60,12 @@ const TEXTS = {
     step1TextareaLabel: "오늘 배운 영어 단어 적기",
     chipsLabel:
       "Word chips (단어 칩) · 단어 칩을 클릭하면 ★ 표시가 생기며, 동화 속에 꼭 들어갔으면 하는 단어로 표시됩니다.",
-    chipEmptyHint:
-      "apple, banana 처럼 입력한 뒤 바깥을 한 번 클릭해 보세요.",
     lengthHintPrefix: "입력된 단어 개수 기준으로",
     lengthHintNormalSuffix: "5–7문장 정도의 짧은 동화가 생성됩니다.",
     lengthHintLongSuffix: "9–12문장 정도의 조금 긴 동화가 생성됩니다.",
+    // 새로 추가된 문구
+    letterPickerLabel: "알파벳 카드에서 단어 고르기:",
+    letterWordsTitle: (letter) => `"${letter}" 로 시작하는 단어 카드`,
     step2Tag: "STEP 2 · Story idea",
     step2Title: "아이와 함께 스토리 아이디어 만들기",
     step2Description:
@@ -102,11 +105,12 @@ const TEXTS = {
     step1TextareaLabel: "写下今天学到的英文单词",
     chipsLabel:
       "Word chips · 点击单词可以标记为 ★ 必须使用，在故事中会尽量包含这些单词。",
-    chipEmptyHint:
-      "先输入 apple, banana 之类的单词，然后点击输入框外面，就会出现单词标签。",
     lengthHintPrefix: "根据单词数量，本故事大约会有",
     lengthHintNormalSuffix: "5–7 句短句。",
     lengthHintLongSuffix: "9–12 句较长的故事。",
+    // 새로 추가된 문구
+    letterPickerLabel: "从 A–Z 单词卡中快速选择：",
+    letterWordsTitle: (letter) => `以 “${letter}” 开头的单词卡`,
     step2Tag: "STEP 2 · Story idea",
     step2Title: "和孩子一起想一个故事点子",
     step2Description:
@@ -149,11 +153,6 @@ const theme = {
   chipBorder: "#F0C9A8",
   chipActiveBg: "#FFE4BF",
   chipActiveBorder: "#FF9F42",
-  // 폰트 스택: 나중에 globals.css 등에서 실제 폰트만 불러오면 바로 적용됨
-  displayFont:
-    '"Textbook-Charlie", "Baloo 2", "Comic Neue", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
-  storyFont:
-    '"Flapstick DEMO", "Chocolate__G", "Comic Neue", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
 };
 
 function computeLengthFromWords(words) {
@@ -170,6 +169,7 @@ export default function Home() {
   const [wordsInput, setWordsInput] = useState("");
   const [words, setWords] = useState([]);
   const [mustUse, setMustUse] = useState([]);
+  const [selectedLetter, setSelectedLetter] = useState(null); // 새 state
   const [answers, setAnswers] = useState({
     mainCharacter: "",
     place: "",
@@ -179,17 +179,26 @@ export default function Home() {
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
 
+  // Step1 textarea에서 단어를 입력했을 때 (수동 입력용)
   const handleWordsBlur = () => {
     const parts = wordsInput
-      // BUG FIX: 예전 /[,\\n]/ 은 'n' 문자까지 구분자로 인식해서 단어가 깨졌음
       .split(/[,\n]/)
       .map((w) => w.trim())
       .filter((w) => w.length > 0);
 
-    setWords(parts);
-    setMustUse((prev) => prev.filter((w) => parts.includes(w)));
+    // 기존 words(버튼으로 고른 단어) + textarea에서 적은 단어를 합치기
+    setWords((prev) => {
+      const merged = [...prev];
+      for (const p of parts) {
+        if (!merged.includes(p)) merged.push(p);
+      }
+      // mustUse는 merged 안에 있는 단어만 남기기
+      setMustUse((old) => old.filter((w) => merged.includes(w)));
+      return merged;
+    });
   };
 
+  // 칩에서 must-use 토글
   const toggleMustUse = (word) => {
     setMustUse((prev) =>
       prev.includes(word) ? prev.filter((w) => w !== word) : [...prev, word]
@@ -312,25 +321,23 @@ export default function Home() {
                 letterSpacing: "0.08em",
                 color: theme.accent,
                 marginBottom: 6,
-                fontFamily: theme.displayFont,
               }}
             >
               MHJ STORYBOOK
             </div>
             <h1
               style={{
-                fontSize: 28,
-                lineHeight: 1.25,
+                fontSize: 26,
+                lineHeight: 1.3,
                 margin: 0,
                 color: theme.textMain,
-                fontFamily: theme.displayFont,
               }}
             >
               {t.appTitle}
             </h1>
             <p
               style={{
-                marginTop: 8,
+                marginTop: 6,
                 fontSize: 15,
                 lineHeight: 1.5,
                 color: theme.textSub,
@@ -373,7 +380,6 @@ export default function Home() {
                     boxShadow: active
                       ? "0 2px 6px rgba(0,0,0,0.15)"
                       : "none",
-                    fontFamily: theme.displayFont,
                   }}
                 >
                   {TEXTS[code].langLabel}
@@ -404,17 +410,15 @@ export default function Home() {
               fontSize: 12,
               fontWeight: 700,
               marginBottom: 8,
-              fontFamily: theme.displayFont,
             }}
           >
             {t.step1Tag}
           </div>
           <h2
             style={{
-              fontSize: 21,
+              fontSize: 20,
               margin: "0 0 4px",
               color: theme.textMain,
-              fontFamily: theme.displayFont,
             }}
           >
             {t.step1Title}
@@ -429,6 +433,97 @@ export default function Home() {
           >
             {t.step1Description}
           </p>
+
+          {/* 알파벳 선택 영역 */}
+          <div style={{ marginBottom: 10 }}>
+            <div
+              style={{
+                fontSize: 14,
+                color: theme.textMain,
+                marginBottom: 6,
+              }}
+            >
+              {t.letterPickerLabel}
+            </div>
+            <div
+              style={{
+                display: "flex",
+                flexWrap: "wrap",
+                gap: 6,
+                marginBottom: 8,
+              }}
+            >
+              {"ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("").map((ch) => (
+                <button
+                  key={ch}
+                  type="button"
+                  onClick={() => setSelectedLetter(ch)}
+                  style={{
+                    padding: "6px 10px",
+                    borderRadius: 8,
+                    border: "1px solid #D6C7B8",
+                    background:
+                      selectedLetter === ch ? "#FFDFBA" : "#FFFFFF",
+                    cursor: "pointer",
+                    fontSize: 14,
+                    fontWeight: 600,
+                  }}
+                >
+                  {ch}
+                </button>
+              ))}
+            </div>
+
+            {/* 선택된 알파벳의 단어 카드 목록 */}
+            {selectedLetter && (
+              <div style={{ marginBottom: 6 }}>
+                <div
+                  style={{
+                    fontSize: 14,
+                    fontWeight: 600,
+                    marginBottom: 4,
+                    color: theme.textMain,
+                  }}
+                >
+                  {t.letterWordsTitle(selectedLetter)}
+                </div>
+                <div
+                  style={{
+                    display: "flex",
+                    flexWrap: "wrap",
+                    gap: 8,
+                  }}
+                >
+                  {(WORD_CARDS[selectedLetter] || []).map((card) => {
+                    const word = card.id.split("_")[1]; // airplane, ant 등
+                    return (
+                      <button
+                        key={card.id}
+                        type="button"
+                        onClick={() =>
+                          setWords((prev) =>
+                            prev.includes(word)
+                              ? prev
+                              : [...prev, word]
+                          )
+                        }
+                        style={{
+                          padding: "5px 10px",
+                          borderRadius: 999,
+                          background: "#FFFFFF",
+                          border: "1px solid #D6C7B8",
+                          cursor: "pointer",
+                          fontSize: 14,
+                        }}
+                      >
+                        {word}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
 
           <label
             style={{
@@ -502,7 +597,7 @@ export default function Home() {
             >
               {words.length === 0 && (
                 <span style={{ fontSize: 13, color: "#B0A49A" }}>
-                  {t.chipEmptyHint}
+                  apple, banana 처럼 입력한 뒤 바깥을 클릭해 보세요.
                 </span>
               )}
               {words.map((w) => {
@@ -556,17 +651,15 @@ export default function Home() {
               fontSize: 12,
               fontWeight: 700,
               marginBottom: 8,
-              fontFamily: theme.displayFont,
             }}
           >
             {t.step2Tag}
           </div>
           <h2
             style={{
-              fontSize: 21,
+              fontSize: 20,
               margin: "0 0 4px",
               color: theme.textMain,
-              fontFamily: theme.displayFont,
             }}
           >
             {t.step2Title}
@@ -701,7 +794,6 @@ export default function Home() {
                 cursor: "pointer",
                 boxShadow: "0 4px 12px rgba(0,0,0,0.18)",
                 opacity: loading ? 0.75 : 1,
-                fontFamily: theme.displayFont,
               }}
             >
               {loading ? "Creating..." : t.createButton}
@@ -740,17 +832,15 @@ export default function Home() {
               fontSize: 12,
               fontWeight: 700,
               marginBottom: 8,
-              fontFamily: theme.displayFont,
             }}
           >
             {t.step3Tag}
           </div>
           <h2
             style={{
-              fontSize: 21,
+              fontSize: 20,
               margin: "0 0 10px",
               color: theme.textMain,
-              fontFamily: theme.displayFont,
             }}
           >
             {t.step3Title}
@@ -771,15 +861,14 @@ export default function Home() {
           {story && (
             <div
               style={{
-                marginTop: 8,
-                padding: 18,
-                borderRadius: 18,
+                marginTop: 6,
+                padding: 16,
+                borderRadius: 16,
                 background: "#FFFFFF",
-                fontSize: 17,
+                fontSize: 16,
                 lineHeight: 1.7,
                 whiteSpace: "pre-wrap",
                 border: "1px solid #E2D8FF",
-                fontFamily: theme.storyFont,
               }}
             >
               {story}
