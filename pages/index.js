@@ -2,7 +2,7 @@
 import { useState } from "react";
 import { LETTER_IMAGES, WORD_CARDS } from "../data/wordCards";
 
-// 언어별 텍스트
+// 다국어 텍스트
 const TEXTS = {
   en: {
     langLabel: "EN",
@@ -11,17 +11,11 @@ const TEXTS = {
       "Type the English words your child learned today and build a fun, very simple story for ages 3–7.",
     step1Tag: "STEP 1 · Today’s words",
     step1Title: "Write today’s English words",
-    step1Intro:
-      "Choose words from the alphabet cards below, or type English words from today’s class / homework / book.",
-    step1FromCardsLabel: "Pick words from alphabet cards:",
-    step1LetterHelp: "Tap a letter to see word cards that start with that letter.",
-    step1LetterWordsPrefix: 'Word cards that start with',
-    step1LetterWordsSuffix: "",
-    step1TextareaTitle: "Write today’s English words",
-    step1TextareaDescription:
-      "You can also type English words here. Use commas (,) or line breaks. The words will turn into little chips.",
+    step1Description:
+      "Type the English words from today’s class / homework / book. Use commas (,) or line breaks. The words will turn into little chips.",
+    step1TextareaLabel: "Write today’s English words",
     chipsLabel:
-      "Word chips · Click a chip to mark it as ★ must-use. These words are strongly requested in the story.",
+      "Word chips · Click a word to mark it as ★ must-use. These words are strongly requested in the story.",
     lengthHintPrefix: "Based on the number of words, this story will be about",
     lengthHintNormalSuffix: "5–7 short sentences.",
     lengthHintLongSuffix: "9–12 short sentences.",
@@ -59,16 +53,9 @@ const TEXTS = {
       "아이와 함께 오늘 배운 영어 단어를 넣고, 3–7세 아이를 위한 아주 쉬운 영어 동화를 만들어 보세요.",
     step1Tag: "STEP 1 · Today’s words",
     step1Title: "오늘 배운 영어 단어 적기",
-    step1Intro:
-      "아래 알파벳 카드에서 단어를 고르거나, 오늘 수업·숙제·책에서 등장한 영어 단어를 직접 적어 주세요.",
-    step1FromCardsLabel: "알파벳 카드에서 단어 고르기:",
-    step1LetterHelp:
-      "알파벳 버튼을 누르면, 그 알파벳으로 시작하는 단어 카드가 나옵니다.",
-    step1LetterWordsPrefix: "“",
-    step1LetterWordsSuffix: "” 로 시작하는 단어 카드",
-    step1TextareaTitle: "오늘 배운 영어 단어 적기",
-    step1TextareaDescription:
-      "쉼표(,)나 줄바꿈으로 구분하면 단어 칩이 자동으로 만들어집니다.",
+    step1Description:
+      "오늘 수업·숙제·책에서 등장한 영어 단어를 적어 주세요. 쉼표(,)나 줄바꿈으로 구분하면 단어 칩이 자동으로 만들어집니다.",
+    step1TextareaLabel: "오늘 배운 영어 단어 적기",
     chipsLabel:
       "Word chips (단어 칩) · 단어 칩을 클릭하면 ★ 표시가 생기며, 동화 속에 꼭 들어갔으면 하는 단어로 표시됩니다.",
     lengthHintPrefix: "입력된 단어 개수 기준으로",
@@ -108,15 +95,9 @@ const TEXTS = {
       "输入孩子今天学到的英文单词，为 3–7 岁孩子生成一个简单、有趣的英文故事。",
     step1Tag: "STEP 1 · Today’s words",
     step1Title: "写下今天学到的英文单词",
-    step1Intro:
-      "可以从下面的字母卡片中选择单词，或自己输入今天在课堂 / 作业 / 书里出现的英文单词。",
-    step1FromCardsLabel: "从字母卡片中选择单词：",
-    step1LetterHelp: "点击字母按钮，可以看到以该字母开头的单词卡片。",
-    step1LetterWordsPrefix: "以 “",
-    step1LetterWordsSuffix: "” 开头的单词卡片",
-    step1TextareaTitle: "写下今天学到的英文单词",
-    step1TextareaDescription:
-      "使用逗号(,) 或换行分隔，单词会自动变成小标签。",
+    step1Description:
+      "输入今天在课堂 / 作业 / 书里出现的英文单词。用逗号(,) 或换行分隔，单词会自动变成小标签。",
+    step1TextareaLabel: "写下今天学到的英文单词",
     chipsLabel:
       "Word chips · 点击单词可以标记为 ★ 必须使用，在故事中会尽量包含这些单词。",
     lengthHintPrefix: "根据单词数量，本故事大约会有",
@@ -149,7 +130,6 @@ const TEXTS = {
   },
 };
 
-// 색상 테마
 const theme = {
   bg: "#FFF7ED",
   card: "#FFFFFF",
@@ -169,7 +149,7 @@ const theme = {
 
 const LETTERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("");
 
-// 단어 개수에 따라 스토리 길이 추론
+// 단어 개수에 따른 길이 추론
 function computeLengthFromWords(words) {
   const count = words.length;
   if (count === 0) return "normal";
@@ -177,82 +157,67 @@ function computeLengthFromWords(words) {
   return "long"; // 6개 이상이면 long
 }
 
-// 공통 입력 스타일
-const inputStyle = {
-  width: "100%",
-  padding: 11,
-  borderRadius: 14,
-  border: "1px solid #D6C7B8",
-  fontSize: 15,
-  boxSizing: "border-box",
-};
+// export=download → export=view 변환
+function toViewUrl(url) {
+  if (!url) return "";
+  if (url.includes("export=view")) return url;
+  if (url.includes("export=download")) {
+    return url.replace("export=download", "export=view");
+  }
+  return url;
+}
+
+// 문자열 → 단어 배열
+function parseWords(value) {
+  return value
+    .split(/[, \n]/)
+    .map((w) => w.trim())
+    .filter(Boolean);
+}
 
 export default function Home() {
-  const [lang, setLang] = useState("ko"); // 기본 KO
+  const [lang, setLang] = useState("ko");
   const t = TEXTS[lang];
+
+  const [selectedLetter, setSelectedLetter] = useState("M");
 
   const [wordsInput, setWordsInput] = useState("");
   const [words, setWords] = useState([]);
   const [mustUse, setMustUse] = useState([]);
-
   const [answers, setAnswers] = useState({
     mainCharacter: "",
     place: "",
     problem: "",
   });
-
   const [story, setStory] = useState("");
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
 
-  // 새로 추가: 현재 선택된 알파벳
-  const [selectedLetter, setSelectedLetter] = useState("M");
-
-  // 공통: 문자열에서 단어 배열로 파싱
-  const parseWordsFromInput = (raw) => {
-    return raw
-      .split(/[,\\n]/)
-      .map((w) => w.trim())
-      .filter((w) => w.length > 0);
-  };
-
-  const syncWordsFromInput = (raw) => {
-    const parts = parseWordsFromInput(raw);
+  // textarea 내용과 words 상태를 동시에 맞춰 주는 함수
+  const syncWordsFromInput = (value) => {
+    const parts = parseWords(value);
     setWords(parts);
     setMustUse((prev) => prev.filter((w) => parts.includes(w)));
   };
 
-  // 텍스트 영역 blur 시 단어 칩 동기화
-  const handleWordsBlur = () => {
-    syncWordsFromInput(wordsInput);
+  // 스토리 아이디어 입력 변경
+  const handleAnswerChange = (field, value) => {
+    setAnswers((prev) => ({ ...prev, [field]: value }));
   };
 
-  // 알파벳 카드의 단어 버튼을 눌렀을 때: wordsInput에 단어 추가 + 칩 동기화
-  const handleAddWordFromCard = (wordText) => {
-    const cleanWord = wordText.trim();
-    if (!cleanWord) return;
+  // 알파벳 카드 클릭 시 단어 입력에 추가
+  const handleWordCardClick = (rawLabel) => {
+    const word = rawLabel.toLowerCase();
 
     setWordsInput((prev) => {
-      const prevTrimmed = prev.trim();
-
-      // 기존 단어들
-      const existingTokens = parseWordsFromInput(prevTrimmed).map((w) =>
-        w.toLowerCase()
-      );
-
-      // 중복 방지
-      if (existingTokens.includes(cleanWord.toLowerCase())) {
-        return prev; // 그대로
+      const current = parseWords(prev);
+      if (current.includes(word)) {
+        // 이미 있으면 그대로
+        syncWordsFromInput(prev);
+        return prev;
       }
-
-      const next =
-        prevTrimmed.length === 0
-          ? cleanWord
-          : prevTrimmed + ", " + cleanWord;
-
-      // 단어 배열도 함께 업데이트
+      const next = prev ? `${prev}, ${word}` : word;
       syncWordsFromInput(next);
-
       return next;
     });
   };
@@ -261,10 +226,6 @@ export default function Home() {
     setMustUse((prev) =>
       prev.includes(word) ? prev.filter((w) => w !== word) : [...prev, word]
     );
-  };
-
-  const handleAnswerChange = (field, value) => {
-    setAnswers((prev) => ({ ...prev, [field]: value }));
   };
 
   const handleCreateStory = async () => {
@@ -340,10 +301,7 @@ export default function Home() {
 
   const wordCount = words.length;
   const inferredLength = computeLengthFromWords(words);
-
-  // 현재 선택된 알파벳의 단어 카드 목록
-  const currentLetterCards = WORD_CARDS[selectedLetter] || [];
-  const currentLetterDisplay = selectedLetter;
+  const cardsForLetter = WORD_CARDS[selectedLetter] || [];
 
   return (
     <div
@@ -487,43 +445,33 @@ export default function Home() {
           </h2>
           <p
             style={{
-              margin: "0 0 16px",
+              margin: "0 0 14px",
               fontSize: 15,
               lineHeight: 1.5,
               color: theme.textSub,
             }}
           >
-            {t.step1Intro}
+            {t.step1Description}
           </p>
 
-          {/* 알파벳 선택 */}
-          <div style={{ marginBottom: 12 }}>
+          {/* 알파벳 카드 선택 영역 */}
+          <div style={{ marginBottom: 16 }}>
             <div
               style={{
-                fontSize: 14,
+                fontSize: 15,
                 fontWeight: 600,
-                marginBottom: 6,
                 color: theme.textMain,
-              }}
-            >
-              {t.step1FromCardsLabel}
-            </div>
-            <div
-              style={{
-                fontSize: 13,
-                color: theme.textSub,
                 marginBottom: 8,
               }}
             >
-              {t.step1LetterHelp}
+              알파벳 카드에서 단어 고르기:
             </div>
-
             <div
               style={{
                 display: "flex",
                 flexWrap: "wrap",
-                gap: 8,
-                marginBottom: 10,
+                gap: 6,
+                marginBottom: 12,
               }}
             >
               {LETTERS.map((letter) => {
@@ -539,8 +487,8 @@ export default function Home() {
                       borderRadius: 12,
                       border: active
                         ? `2px solid ${theme.accent}`
-                        : "1px solid #E3D3C3",
-                      background: active ? "#FFE7CC" : "#FFFDF9",
+                        : "1px solid #E0CDB9",
+                      background: active ? "#FFE7CF" : "#FFF9F3",
                       fontSize: 18,
                       fontWeight: 700,
                       cursor: "pointer",
@@ -553,214 +501,196 @@ export default function Home() {
               })}
             </div>
 
-            {/* 선택된 알파벳의 단어 카드 리스트 */}
-            <div style={{ marginTop: 4 }}>
-              <div
-                style={{
-                  fontSize: 14,
-                  fontWeight: 600,
-                  marginBottom: 6,
-                  color: theme.textMain,
-                }}
-              >
-                {t.step1LetterWordsPrefix}
-                {currentLetterDisplay}
-                {t.step1LetterWordsSuffix}
-              </div>
+            {cardsForLetter.length > 0 && (
+              <>
+                <div
+                  style={{
+                    fontSize: 15,
+                    fontWeight: 600,
+                    marginBottom: 8,
+                    color: theme.textMain,
+                  }}
+                >
+                  “{selectedLetter}” 로 시작하는 단어 카드
+                </div>
+                <div
+                  style={{
+                    display: "flex",
+                    flexWrap: "wrap",
+                    gap: 12,
+                  }}
+                >
+                  {cardsForLetter.map((card) => {
+                    const rawLabel = card.id.split("_")[1] || card.id;
+                    const label =
+                      rawLabel.charAt(0).toUpperCase() +
+                      rawLabel.slice(1).toLowerCase();
 
-              <div
-                style={{
-                  display: "flex",
-                  flexWrap: "wrap",
-                  gap: 10,
-                }}
-              >
-                {currentLetterCards.length === 0 && (
-                  <span
-                    style={{
-                      fontSize: 13,
-                      color: "#B0A49A",
-                    }}
-                  >
-                    No cards for this letter yet.
-                  </span>
-                )}
-
-                {currentLetterCards.map((card) => {
-                  const wordText =
-                    card.id.split("_")[1] || card.id; // "M_Milk" → "Milk"
-                  return (
-                    <button
-                      key={card.id}
-                      type="button"
-                      onClick={() => handleAddWordFromCard(wordText)}
-                      style={{
-                        display: "flex",
-                        flexDirection: "column",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        width: 90,
-                        padding: "8px 6px",
-                        borderRadius: 14,
-                        border: "1px solid #E3D3C3",
-                        background: "#FFFDF9",
-                        cursor: "pointer",
-                        boxShadow: "0 2px 4px rgba(0,0,0,0.04)",
-                      }}
-                    >
-                      <div
+                    return (
+                      <button
+                        key={card.id}
+                        type="button"
+                        onClick={() => handleWordCardClick(label)}
                         style={{
-                          width: 60,
-                          height: 60,
-                          borderRadius: 12,
-                          overflow: "hidden",
-                          marginBottom: 4,
+                          width: 130,
+                          padding: 12,
+                          borderRadius: 18,
+                          border: "1px solid #E3D3C3",
                           background: "#FFF",
                           display: "flex",
+                          flexDirection: "column",
                           alignItems: "center",
-                          justifyContent: "center",
+                          gap: 6,
+                          cursor: "pointer",
+                          boxShadow:
+                            "0 4px 10px rgba(0,0,0,0.05), 0 0 0 1px rgba(255,255,255,0.6) inset",
                         }}
                       >
-                        <img
-                          src={card.imageUrl}
-                          alt={wordText}
+                        <div
                           style={{
-                            maxWidth: "100%",
-                            maxHeight: "100%",
-                            display: "block",
+                            width: 64,
+                            height: 64,
+                            borderRadius: 16,
+                            overflow: "hidden",
+                            background: "#FFF7EF",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
                           }}
-                        />
-                      </div>
-                      <span
-                        style={{
-                          fontSize: 13,
-                          fontWeight: 600,
-                          color: theme.textMain,
-                        }}
-                      >
-                        {wordText}
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
+                        >
+                          <img
+                            src={toViewUrl(card.imageUrl)}
+                            alt={label}
+                            style={{
+                              maxWidth: "100%",
+                              maxHeight: "100%",
+                              objectFit: "contain",
+                              display: "block",
+                            }}
+                          />
+                        </div>
+                        <div
+                          style={{
+                            fontSize: 14,
+                            fontWeight: 700,
+                            color: theme.textMain,
+                          }}
+                        >
+                          {label}
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </>
+            )}
           </div>
 
-          {/* 텍스트 입력 영역 + 칩 */}
-          <div style={{ marginTop: 20 }}>
-            <h3
+          {/* 텍스트 입력 */}
+          <label
+            style={{
+              display: "block",
+              fontSize: 14,
+              marginBottom: 6,
+              color: theme.textMain,
+              fontWeight: 600,
+            }}
+          >
+            {t.step1TextareaLabel}
+          </label>
+          <textarea
+            value={wordsInput}
+            onChange={(e) => {
+              const value = e.target.value;
+              setWordsInput(value);
+              syncWordsFromInput(value);
+            }}
+            rows={4}
+            placeholder="apple, banana, princess, ship"
+            style={{
+              width: "100%",
+              resize: "vertical",
+              padding: 12,
+              borderRadius: 14,
+              border: "1px solid #E3D3C3",
+              fontSize: 15,
+              lineHeight: 1.5,
+              outline: "none",
+              boxSizing: "border-box",
+            }}
+          />
+
+          {/* 칩 & 길이 힌트 */}
+          <div style={{ marginTop: 12 }}>
+            <div
               style={{
-                fontSize: 16,
-                margin: "0 0 6px",
-                color: theme.textMain,
-              }}
-            >
-              {t.step1TextareaTitle}
-            </h3>
-            <p
-              style={{
-                margin: "0 0 10px",
                 fontSize: 14,
-                color: theme.textSub,
+                color: theme.textMain,
+                marginBottom: 4,
               }}
             >
-              {t.step1TextareaDescription}
-            </p>
-
-            <textarea
-              value={wordsInput}
-              onChange={(e) => setWordsInput(e.target.value)}
-              onBlur={handleWordsBlur}
-              rows={4}
-              placeholder="apple, banana, princess, ship"
+              {t.chipsLabel}
+            </div>
+            <div
               style={{
-                width: "100%",
-                resize: "vertical",
-                padding: 12,
-                borderRadius: 14,
-                border: "1px solid #E3D3C3",
-                fontSize: 15,
-                lineHeight: 1.5,
-                outline: "none",
-                boxSizing: "border-box",
+                fontSize: 13,
+                color: theme.textSub,
+                marginBottom: 6,
               }}
-            />
+            >
+              {t.wordCountLabel(wordCount)}{" "}
+              {wordCount > 0 && (
+                <>
+                  · {t.lengthHintPrefix}{" "}
+                  <strong>
+                    {inferredLength === "normal"
+                      ? t.lengthHintNormalSuffix
+                      : t.lengthHintLongSuffix}
+                  </strong>
+                </>
+              )}
+            </div>
 
-            {/* 칩 & 길이 힌트 */}
-            <div style={{ marginTop: 12 }}>
-              <div
-                style={{
-                  fontSize: 14,
-                  color: theme.textMain,
-                  marginBottom: 4,
-                }}
-              >
-                {t.chipsLabel}
-              </div>
-              <div
-                style={{
-                  fontSize: 13,
-                  color: theme.textSub,
-                  marginBottom: 6,
-                }}
-              >
-                {t.wordCountLabel(wordCount)}{" "}
-                {wordCount > 0 && (
-                  <>
-                    · {t.lengthHintPrefix}{" "}
-                    <strong>
-                      {inferredLength === "normal"
-                        ? t.lengthHintNormalSuffix
-                        : t.lengthHintLongSuffix}
-                    </strong>
-                  </>
-                )}
-              </div>
-
-              <div
-                style={{
-                  display: "flex",
-                  flexWrap: "wrap",
-                  gap: 8,
-                  minHeight: 32,
-                  alignItems: "center",
-                }}
-              >
-                {words.length === 0 && (
-                  <span style={{ fontSize: 13, color: "#B0A49A" }}>
-                    apple, banana 처럼 입력한 뒤 바깥을 클릭해 보세요.
-                  </span>
-                )}
-                {words.map((w) => {
-                  const isMust = mustUse.includes(w);
-                  return (
-                    <button
-                      key={w}
-                      type="button"
-                      onClick={() => toggleMustUse(w)}
-                      style={{
-                        padding: "6px 12px",
-                        borderRadius: 999,
-                        border: `1px solid ${
-                          isMust ? theme.chipActiveBorder : theme.chipBorder
-                        }`,
-                        background: isMust
-                          ? theme.chipActiveBg
-                          : theme.chipBg,
-                        fontSize: 14,
-                        cursor: "pointer",
-                        display: "inline-flex",
-                        alignItems: "center",
-                        gap: 4,
-                      }}
-                    >
-                      {isMust && <span>★</span>}
-                      <span>{w}</span>
-                    </button>
-                  );
-                })}
-              </div>
+            <div
+              style={{
+                display: "flex",
+                flexWrap: "wrap",
+                gap: 8,
+                minHeight: 32,
+                alignItems: "center",
+              }}
+            >
+              {words.length === 0 && (
+                <span style={{ fontSize: 13, color: "#B0A49A" }}>
+                  apple, banana 처럼 입력한 뒤 바깥을 클릭해 보세요.
+                </span>
+              )}
+              {words.map((w) => {
+                const isMust = mustUse.includes(w);
+                return (
+                  <button
+                    key={w}
+                    type="button"
+                    onClick={() => toggleMustUse(w)}
+                    style={{
+                      padding: "6px 12px",
+                      borderRadius: 999,
+                      border: `1px solid ${
+                        isMust ? theme.chipActiveBorder : theme.chipBorder
+                      }`,
+                      background: isMust ? theme.chipActiveBg : theme.chipBg,
+                      fontSize: 14,
+                      cursor: "pointer",
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: 4,
+                    }}
+                  >
+                    {isMust && <span>★</span>}
+                    <span>{w}</span>
+                  </button>
+                );
+              })}
             </div>
           </div>
         </section>
@@ -1014,3 +944,12 @@ export default function Home() {
     </div>
   );
 }
+
+const inputStyle = {
+  width: "100%",
+  padding: 11,
+  borderRadius: 14,
+  border: "1px solid #D6C7B8",
+  fontSize: 15,
+  boxSizing: "border-box",
+};
