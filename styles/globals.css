@@ -1,56 +1,53 @@
 /* styles/globals.css */
 
-/* 1) Google Fonts – 아이용 손글씨 느낌 폰트 두 개
-   - Baloo 2 : 타이틀 / 버튼 / 스텝 라벨
-   - Comic Neue : 스토리 본문 + 보조
-*/
-@import url("https://fonts.googleapis.com/css2?family=Baloo+2:wght@400;600;700&family=Comic+Neue:wght@400;700&display=swap");
-
-/* 2) 기본 리셋 */
-*,
-*::before,
-*::after {
-  box-sizing: border-box;
-}
+/* Google Fonts – 아이들이 보기 좋은 둥근 느낌 폰트들 */
+@import url('https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&family=Schoolbell&display=swap');
 
 html,
 body {
   padding: 0;
   margin: 0;
-}
-
-html {
-  font-size: 16px;
-}
-
-/* 3) 기본 바디 폰트 + 배경색 */
-body {
+  background: #FFF7ED;
   font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
     sans-serif;
-  background-color: #fff7ed; /* 앱 전체 배경과 맞춤 */
-  color: #32261a;
 }
 
-/* Next.js root */
-#__next {
-  min-height: 100vh;
+* {
+  box-sizing: border-box;
 }
 
-/* 4) 스토리북 전용 폰트 유틸 클래스
-   (지금 index.js에서는 theme.displayFont / storyFont를 직접 쓰고 있지만,
-    나중에 필요하면 이 클래스들을 JSX에 붙여서도 사용할 수 있음)
-*/
-.app-display-font {
-  font-family: "Baloo 2", "Comic Neue", system-ui, -apple-system,
-    BlinkMacSystemFont, "Segoe UI", sans-serif;
-}
-
-.app-story-font {
-  font-family: "Comic Neue", system-ui, -apple-system, BlinkMacSystemFont,
+/* 스토리북 전체에 기본적으로 적용할 폰트 */
+.storybook-app {
+  font-family: 'Fredoka', system-ui, -apple-system, BlinkMacSystemFont,
     "Segoe UI", sans-serif;
 }
 
-/* 5) 스크롤 약간 부드럽게 */
-html {
-  scroll-behavior: smooth;
+/* MHJ STORYBOOK 라벨 */
+.storybook-logo {
+  letter-spacing: 0.12em;
+}
+
+/* 메인 타이틀 */
+.storybook-title {
+  font-family: 'Fredoka', system-ui, -apple-system, BlinkMacSystemFont,
+    "Segoe UI", sans-serif;
+}
+
+/* STEP 3 결과 동화 텍스트 – 손글씨 느낌 */
+.storybook-story-text {
+  font-family: 'Schoolbell', system-ui, -apple-system, BlinkMacSystemFont,
+    "Segoe UI", cursive;
+  font-size: 18px;
+  line-height: 1.8;
+}
+
+/* 모바일에서 글자 조금 줄이기 */
+@media (max-width: 600px) {
+  .storybook-story-text {
+    font-size: 17px;
+  }
+
+  .storybook-title {
+    font-size: 22px;
+  }
 }
