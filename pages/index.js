@@ -1,461 +1,339 @@
 // pages/index.js
-import { useEffect, useMemo, useState } from "react";
-import { WORD_CARDS } from "../data/wordCards";
-
-// 알파벳 버튼용 배열
-const ALPHABETS = [
-  "A",
-  "B",
-  "C",
-  "D",
-  "E",
-  "F",
-  "G",
-  "H",
-  "I",
-  "J",
-  "K",
-  "L",
-  "M",
-  "N",
-  "O",
-  "P",
-  "Q",
-  "R",
-  "S",
-  "T",
-  "U",
-  "V",
-  "W",
-  "X",
-  "Y",
-  "Z",
-];
+import { useState, useCallback } from "react";
+import { LETTER_IMAGES, WORD_CARDS } from "../data/wordCards";
 
 const MAX_WORDS = 8;
+const ALPHABETS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("");
 
-// WORD_CARDS에서 특정 알파벳에 해당하는 단어 카드만 추출
-// WORD_CARDS 구조: { id: "M_Milk", imageUrl: "..." } 라고 가정
-function getCardsByLetter(letter) {
-  if (!Array.isArray(WORD_CARDS)) return [];
-
-  return WORD_CARDS
-    .filter(
-      (card) =>
-        card &&
-        typeof card.id === "string" &&
-        card.id.startsWith(`${letter}_`)
-    )
-    .map((card) => {
-      const parts = card.id.split("_");
-      const raw = parts[1] || "";
-      const word =
-        raw.length > 0
-          ? raw.charAt(0).toUpperCase() + raw.slice(1).toLowerCase()
-          : raw;
-      return {
-        id: card.id,
-        word,
-        imageUrl: card.imageUrl,
-      };
-    });
-}
-
-// 단어 비교용(대소문자 무시)
-function normalizeWord(word) {
-  return (word || "").trim().toLowerCase();
+// id가 "A_Airplane" 형태일 때 두 번째 토큰을 단어로 사용
+function getWordFromCard(card) {
+  if (card.word) return card.word;
+  if (!card.id) return "";
+  const parts = String(card.id).split("_");
+  return parts[1] || parts[0] || "";
 }
 
 export default function HomePage() {
   const [selectedLetter, setSelectedLetter] = useState("A");
 
-  // 오늘 선택된 단어들(진짜 상태)
+  // chips로 관리하는 "오늘의 핵심 단어들"
   const [selectedWords, setSelectedWords] = useState([]);
 
-  // textarea에 표시되는 문자열(= selectedWords를 보여주는 창)
-  const [manualInput, setManualInput] = useState("");
+  // 위 입력창(쉼표/엔터로 단어 추가)
+  const [wordsInput, setWordsInput] = useState("");
 
-  // Step 2 : 장소 / 행동 / 마무리
-  const [storyPlace, setStoryPlace] = useState("");
-  const [storyAction, setStoryAction] = useState("");
-  const [storyEnding, setStoryEnding] = useState("");
+  // STEP 2 입력
+  const [placeInput, setPlaceInput] = useState("at the park");
+  const [actionInput, setActionInput] = useState("picnic");
+  const [endingInput, setEndingInput] = useState("happy");
 
+  // 결과/에러/로딩
   const [story, setStory] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
 
-  // 선택된 알파벳에 해당하는 카드 목록
-  const wordCardsForLetter = useMemo(
-    () => getCardsByLetter(selectedLetter),
-    [selectedLetter]
-  );
+  const currentCards = WORD_CARDS[selectedLetter] || [];
 
-  // selectedWords 상태가 바뀔 때마다 textarea 내용도 동기화
-  useEffect(() => {
-    if (selectedWords.length === 0) {
-      setManualInput("");
-    } else {
-      setManualInput(selectedWords.join(", "));
-    }
-  }, [selectedWords]);
-
-  // 문자열을 단어 배열로 파싱
-  const parseWordsFromText = (text) => {
-    if (!text) return [];
-
-    const roughTokens = text
-      .split(/[\n,]/) // 쉼표, 줄바꿈 기준 분리
-      .map((t) => t.trim())
-      .filter((t) => t.length > 0);
-
-    const unique = [];
-    for (const token of roughTokens) {
-      const normalized = normalizeWord(token);
-      if (!normalized) continue;
-
-      // 이미 포함돼 있으면 스킵(대소문자 무시)
-      if (
-        !unique.some(
-          (w) => normalizeWord(w) === normalized
-        )
-      ) {
-        unique.push(token);
-      }
-
-      if (unique.length >= MAX_WORDS) break;
-    }
-
-    return unique;
-  };
-
-  // textarea에 타이핑할 때
-  const handleManualInputChange = (e) => {
-    const text = e.target.value;
-    setManualInput(text);
-
-    const parsed = parseWordsFromText(text);
-    setSelectedWords(parsed);
-  };
-
-  // 카드 클릭 시 단어 토글
-  const handleCardClick = (word) => {
+  // chip 추가 유틸 (중복/공백/최대 개수 체크)
+  const addWords = useCallback((words) => {
     setSelectedWords((prev) => {
-      const normalized = normalizeWord(word);
-      const exists = prev.some(
-        (w) => normalizeWord(w) === normalized
-      );
-
-      if (exists) {
-        // 이미 있으면 제거
-        return prev.filter(
-          (w) => normalizeWord(w) !== normalized
-        );
+      const next = [...prev];
+      for (const raw of words) {
+        const word = raw.trim();
+        if (!word) continue;
+        if (next.includes(word)) continue;
+        if (next.length >= MAX_WORDS) break;
+        next.push(word);
       }
-
-      // 새로 추가
-      if (prev.length >= MAX_WORDS) {
-        // 더 이상 추가 불가
-        return prev;
-      }
-      return [...prev, word];
+      return next;
     });
+  }, []);
+
+  // 카드 클릭 시 단어 추가
+  const handleCardClick = (card) => {
+    const word = getWordFromCard(card);
+    if (!word) return;
+    addWords([word]);
   };
 
-  // chip 클릭: 제거
-  const handleChipClick = (wordToRemove) => {
-    setSelectedWords((prev) =>
-      prev.filter(
-        (w) =>
-          normalizeWord(w) !== normalizeWord(wordToRemove)
-      )
-    );
+  // 입력창에서 쉼표/엔터/blur 시 단어 commit
+  const commitInputToWords = () => {
+    if (!wordsInput.trim()) return;
+    const tokens = wordsInput
+      .split(/[,\n]/)
+      .map((t) => t.trim())
+      .filter(Boolean);
+    if (tokens.length === 0) return;
+    addWords(tokens);
+    setWordsInput(""); // commit 후 입력창 비우기
   };
 
-  // AI에게 동화 만들기 요청
+  const handleWordsKeyDown = (e) => {
+    if (e.key === "," || e.key === "Enter") {
+      e.preventDefault();
+      commitInputToWords();
+    }
+  };
+
+  const handleWordsBlur = () => {
+    commitInputToWords();
+  };
+
+  const handleRemoveWord = (word) => {
+    setSelectedWords((prev) => prev.filter((w) => w !== word));
+  };
+
+  // AI 동화 생성
   const handleCreateStory = async () => {
     setErrorMsg("");
     setStory("");
 
-    if (selectedWords.length === 0) {
-      setErrorMsg("먼저 오늘 배운 단어를 1개 이상 선택해 주세요.");
+    if (selectedWords.length < 2) {
+      setErrorMsg("단어는 최소 2개 이상 선택해 주세요.");
+      return;
+    }
+    if (selectedWords.length > MAX_WORDS) {
+      setErrorMsg(`단어는 최대 ${MAX_WORDS}개까지만 사용할 수 있습니다.`);
       return;
     }
 
     setIsLoading(true);
     try {
-      const res = await fetch("/api/storybook", {
+      const response = await fetch("/api/storybook", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           words: selectedWords,
-          place: storyPlace,
-          action: storyAction,
-          ending: storyEnding,
+          place: placeInput,
+          action: actionInput,
+          ending: endingInput,
         }),
       });
 
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        throw new Error(
-          data.error || "AI 동화 생성 중 오류가 발생했습니다."
-        );
+      if (!response.ok) {
+        const text = await response.text();
+        throw new Error(text || "AI 동화 생성 요청 실패");
       }
 
-      const data = await res.json();
+      const data = await response.json();
       setStory(data.story || "");
     } catch (err) {
       console.error(err);
-      setErrorMsg(
-        err.message ||
-          "AI 동화 생성 중 오류가 발생했습니다."
-      );
+      setErrorMsg("AI 동화 생성 중 오류가 발생했습니다.");
     } finally {
       setIsLoading(false);
     }
   };
 
   return (
-    <div className="page">
-      <main className="page-inner">
-        {/* 제목 영역 */}
-        <header className="page-header">
-          <h1 className="page-title">
+    <div className="min-h-screen bg-[#FFF6EC] text-[#4A3422]">
+      <main className="max-w-5xl mx-auto px-4 py-10">
+        {/* 헤더 */}
+        <header className="mb-8">
+          <h1 className="text-3xl md:text-4xl font-bold mb-2">
             AI Storybook – 오늘 배운 단어로 영어 동화 만들기
           </h1>
-          <p className="page-subtitle">
-            아이와 함께 오늘 배운 영어 단어를 넣고, 3~7세 아이를 위한
-            아주 쉬운 영어 동화를 만들어 보세요.
+          <p className="text-sm md:text-base text-[#6C543C]">
+            아이와 함께 오늘 배운 영어 단어를 넣고, 3~7세 아이를 위한 아주 쉬운
+            영어 동화를 만들어 보세요.
           </p>
         </header>
 
         {/* STEP 1 */}
-        <section className="step-section">
-          <h2 className="step-title">
+        <section className="bg-[#FDE8CC] rounded-3xl p-6 md:p-8 shadow-md mb-10">
+          <div className="inline-block px-4 py-1 rounded-full bg-white/70 text-xs font-semibold text-[#B37543] mb-4">
             STEP 1 · Today&apos;s words
-          </h2>
+          </div>
 
-          {/* 알파벳 선택 + 카드 리스트 */}
-          <div className="card-section">
-            <p className="section-label">
+          <h2 className="text-xl md:text-2xl font-semibold mb-4">
+            오늘 배운 영어 단어 적기
+          </h2>
+          <p className="text-sm md:text-base text-[#6C543C] mb-4">
+            오늘 수업·숙제·책에서 등장한 영어 단어를 적어 주세요. 쉽표(,)나
+            줄바꿈으로 구분하면 단어 칩이 자동으로 만들어집니다.
+          </p>
+
+          {/* 알파벳 선택 */}
+          <div className="mb-4">
+            <p className="text-sm font-semibold mb-2">
               알파벳 카드에서 단어 고르기:
             </p>
-
-            {/* 알파벳 버튼들 */}
-            <div className="alphabet-row">
+            <div className="flex flex-wrap gap-2">
               {ALPHABETS.map((letter) => (
                 <button
                   key={letter}
                   type="button"
-                  className={
-                    "alphabet-button" +
-                    (letter === selectedLetter
-                      ? " alphabet-button--active"
-                      : "")
-                  }
                   onClick={() => setSelectedLetter(letter)}
+                  className={`w-8 h-8 rounded-full text-sm font-semibold border ${
+                    selectedLetter === letter
+                      ? "bg-[#FFB26B] text-white border-[#FFB26B]"
+                      : "bg-white text-[#4A3422] border-[#E3C7A1]"
+                  }`}
                 >
                   {letter}
                 </button>
               ))}
             </div>
-
-            <p className="section-hint">
-              &quot;{selectedLetter}
-              &quot; 로 시작하는 단어 카드
-            </p>
-
-            {/* 단어 카드: 3 x 2 그리드 */}
-            <div className="word-card-grid">
-              {wordCardsForLetter.length === 0 && (
-                <p className="empty-message">
-                  이 알파벳에는 아직 카드가 없습니다.
-                </p>
-              )}
-
-              {wordCardsForLetter.map((card) => {
-                const isSelected = selectedWords.some(
-                  (w) =>
-                    normalizeWord(w) ===
-                    normalizeWord(card.word)
-                );
-
-                return (
-                  <button
-                    key={card.id}
-                    type="button"
-                    className={
-                      "word-card" +
-                      (isSelected
-                        ? " word-card--selected"
-                        : "")
-                    }
-                    onClick={() =>
-                      handleCardClick(card.word)
-                    }
-                  >
-                    {card.imageUrl && (
-                      <div className="word-card-image-wrap">
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img
-                          src={card.imageUrl}
-                          alt={card.word}
-                          className="word-card-image"
-                        />
-                      </div>
-                    )}
-                    <div className="word-card-label">
-                      {card.word}
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
           </div>
 
-          {/* 오늘 배운 영어 단어 적기 (입력 + Word chips 출력) */}
-          <div className="today-words-section">
-            <label className="section-label">
+          {/* 현재 알파벳 카드 그리드 (3 x 2) */}
+          <div className="mt-4">
+            <p className="text-sm font-semibold mb-2">
+              &quot;{selectedLetter}&quot; 로 시작하는 단어 카드
+            </p>
+            {currentCards.length === 0 ? (
+              <div className="text-sm text-[#8A7257]">
+                이 알파벳에는 아직 카드가 없습니다.
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+                {currentCards.map((card) => {
+                  const word = getWordFromCard(card);
+                  return (
+                    <button
+                      key={card.id}
+                      type="button"
+                      onClick={() => handleCardClick(card)}
+                      className="bg-white rounded-3xl shadow-sm hover:shadow-md transition-shadow flex flex-col items-center justify-between px-4 pt-4 pb-3"
+                    >
+                      <div className="w-full aspect-square flex items-center justify-center mb-3">
+                        {card.imageUrl ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img
+                            src={card.imageUrl}
+                            alt={word}
+                            className="w-full h-full object-contain rounded-2xl"
+                            loading="lazy"
+                          />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center rounded-2xl bg-[#FFF4E3] text-xs text-[#B7A089]">
+                            이미지 없음
+                          </div>
+                        )}
+                      </div>
+                      <div className="text-sm md:text-base font-semibold text-[#4A3422]">
+                        {word}
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* 오늘 배운 영어 단어 입력 */}
+          <div className="mt-8">
+            <p className="text-sm font-semibold mb-2">
               오늘 배운 영어 단어 적기
-            </label>
+            </p>
             <textarea
-              className="today-words-input"
-              placeholder="apple, banana 처럼 쉼표(,)나 줄바꿈으로 단어를 구분해서 적어 주세요."
-              value={manualInput}
-              onChange={handleManualInputChange}
-              rows={2}
+              value={wordsInput}
+              onChange={(e) => setWordsInput(e.target.value)}
+              onKeyDown={handleWordsKeyDown}
+              onBlur={handleWordsBlur}
+              rows={3}
+              className="w-full rounded-2xl border border-[#E3C7A1] px-4 py-3 text-sm md:text-base outline-none focus:ring-2 focus:ring-[#FFB26B] focus:border-[#FFB26B] bg-white"
+              placeholder="apple, banana 처럼 쉽표(,)나 줄바꿈으로 단어를 적어 주세요."
             />
+            <p className="mt-2 text-xs md:text-sm text-[#8A7257]">
+              Word chips (단어 칩) · 단어 칩을 클릭하면 ★ 표시가 생기며, 동화 속에
+              꼭 들어갔으면 하는 단어로 표시됩니다. {selectedWords.length}/
+              {MAX_WORDS}
+            </p>
 
-            <div className="chips-header-row">
-              <p className="chips-label">
-                Word chips (단어 칩) · 아래 단어 칩이
-                오늘 동화에 꼭 들어갔으면 하는 단어입니다.
-              </p>
-              <p className="chips-count">
-                {selectedWords.length}/{MAX_WORDS}
-              </p>
-            </div>
-
-            <div className="chips-row">
-              {selectedWords.length === 0 && (
-                <span className="chips-empty-text">
-                  아직 선택된 단어가 없습니다. 카드나
-                  입력창으로 단어를 추가해 보세요.
-                </span>
+            {/* Word chips */}
+            <div className="mt-3 flex flex-wrap gap-3">
+              {selectedWords.length === 0 ? (
+                <div className="text-xs md:text-sm text-[#B7A089]">
+                  아직 선택된 단어가 없습니다. 카드나 입력창으로 단어를 추가해
+                  보세요.
+                </div>
+              ) : (
+                selectedWords.map((word) => (
+                  <button
+                    key={word}
+                    type="button"
+                    onClick={() => handleRemoveWord(word)}
+                    className="flex items-center gap-2 px-4 py-2 rounded-full bg-white shadow-sm text-xs md:text-sm font-medium text-[#4A3422]"
+                  >
+                    <span className="text-[#FFB26B]">★</span>
+                    <span>{word}</span>
+                    <span className="text-[#C3A489] text-xs">×</span>
+                  </button>
+                ))
               )}
-
-              {selectedWords.map((word) => (
-                <button
-                  key={word}
-                  type="button"
-                  className="word-chip"
-                  onClick={() => handleChipClick(word)}
-                >
-                  <span className="word-chip-star">★</span>
-                  <span className="word-chip-text">
-                    {word}
-                  </span>
-                  <span className="word-chip-remove">
-                    ×
-                  </span>
-                </button>
-              ))}
             </div>
           </div>
         </section>
 
-        {/* STEP 2 : AI 동화 만들기 */}
-        <section className="step-section">
-          <h2 className="step-title">
+        {/* STEP 2 – AI 동화 만들기 */}
+        <section className="bg-white rounded-3xl p-6 md:p-8 shadow-md mb-10">
+          <h2 className="text-xl md:text-2xl font-semibold mb-4">
             STEP 2 · AI에게 영어 동화 만들기 요청하기
           </h2>
-
-          <p className="section-summary">
-            아이가 고른 단어(2~8개)를 바탕으로 AI가 아주
-            쉬운 영어 동화를 만들어 줍니다. 아래 옵션은
-            비워 둬도 괜찮고, 아이와 함께 간단히 적어 봐도
-            좋습니다.
+          <p className="text-sm md:text-base text-[#6C543C] mb-6">
+            아이가 고른 단어(2~8개)를 바탕으로 AI가 아주 쉬운 영어 동화를
+            만들어 줍니다. 아래 옵션은 비워 둬도 괜찮고, 아이와 함께 간단히
+            적어 봐도 좋습니다.
           </p>
 
-          <div className="story-options-grid">
-            <div className="story-option">
-              <label className="option-label">
-                이야기 장소 (선택)
-              </label>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+            <div>
+              <p className="text-xs font-semibold mb-1">이야기 장소 (선택)</p>
               <input
                 type="text"
-                className="option-input"
-                placeholder="at the park, at home, at the zoo..."
-                value={storyPlace}
-                onChange={(e) =>
-                  setStoryPlace(e.target.value)
-                }
+                value={placeInput}
+                onChange={(e) => setPlaceInput(e.target.value)}
+                className="w-full rounded-2xl border border-[#E3C7A1] px-4 py-2 text-sm outline-none focus:ring-2 focus:ring-[#FFB26B] focus:border-[#FFB26B] bg-[#FFF9F2]"
+                placeholder="at the park, at home, at school..."
               />
             </div>
-
-            <div className="story-option">
-              <label className="option-label">
-                무엇을 했나요? (선택)
-              </label>
+            <div>
+              <p className="text-xs font-semibold mb-1">무엇을 했나요? (선택)</p>
               <input
                 type="text"
-                className="option-input"
-                placeholder="picnic, birthday party, reading books..."
-                value={storyAction}
-                onChange={(e) =>
-                  setStoryAction(e.target.value)
-                }
+                value={actionInput}
+                onChange={(e) => setActionInput(e.target.value)}
+                className="w-full rounded-2xl border border-[#E3C7A1] px-4 py-2 text-sm outline-none focus:ring-2 focus:ring-[#FFB26B] focus:border-[#FFB26B] bg-[#FFF9F2]"
+                placeholder="picnic, party, adventure..."
               />
             </div>
-
-            <div className="story-option">
-              <label className="option-label">
+            <div>
+              <p className="text-xs font-semibold mb-1">
                 어떻게 끝났으면 좋겠나요? (선택)
-              </label>
+              </p>
               <input
                 type="text"
-                className="option-input"
+                value={endingInput}
+                onChange={(e) => setEndingInput(e.target.value)}
+                className="w-full rounded-2xl border border-[#E3C7A1] px-4 py-2 text-sm outline-none focus:ring-2 focus:ring-[#FFB26B] focus:border-[#FFB26B] bg-[#FFF9F2]"
                 placeholder="happy, funny, surprising..."
-                value={storyEnding}
-                onChange={(e) =>
-                  setStoryEnding(e.target.value)
-                }
               />
             </div>
           </div>
 
-          <div className="story-button-row">
-            <button
-              type="button"
-              className="primary-button"
-              onClick={handleCreateStory}
-              disabled={isLoading}
-            >
-              {isLoading
-                ? "AI가 동화를 만드는 중..."
-                : "AI에게 영어 동화 만들기 요청하기"}
-            </button>
-          </div>
+          <button
+            type="button"
+            onClick={handleCreateStory}
+            disabled={isLoading}
+            className="inline-flex items-center justify-center px-6 py-3 rounded-full bg-[#FF9F5A] hover:bg-[#FF8A33] text-white text-sm md:text-base font-semibold shadow-md disabled:opacity-60 disabled:cursor-not-allowed"
+          >
+            {isLoading ? "AI가 동화를 만드는 중..." : "AI에게 영어 동화 만들기 요청하기"}
+          </button>
 
           {errorMsg && (
-            <p className="error-message">{errorMsg}</p>
+            <p className="mt-3 text-sm text-red-600 whitespace-pre-line">
+              {errorMsg}
+            </p>
           )}
 
           {story && (
-            <article className="story-result">
-              <h3 className="story-title">
-                오늘의 AI 영어 동화
-              </h3>
-              <p className="story-text">
-                {story.split("\n").map((line, idx) => (
-                  <span key={idx}>
-                    {line}
-                    <br />
-                  </span>
-                ))}
+            <div className="mt-6 border-t border-[#F1D5B0] pt-4">
+              <h3 className="text-lg font-semibold mb-2">AI가 만든 영어 동화</h3>
+              <p className="whitespace-pre-line text-sm md:text-base leading-relaxed">
+                {story}
               </p>
-            </article>
+            </div>
           )}
         </section>
       </main>
