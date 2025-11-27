@@ -1,1035 +1,382 @@
 // pages/index.js
-import { useEffect, useState } from "react";
-import { supabase } from "../lib/supabaseClient";
+import { useState, useMemo } from "react";
 import { WORD_CARDS } from "../data/wordCards";
 
-// 다국어 텍스트
-const TEXTS = {
-  en: {
-    langLabel: "EN",
-    appTitle: "AI Storybook – Create an English story with today's words",
-    appSubtitle:
-      "Type the English words your child learned today and build a fun, very simple story for ages 3–7.",
-    step1Tag: "STEP 1 · Today’s words",
-    step1Title: "Write today’s English words",
-    step1Description:
-      "Type the English words from today’s class / homework / book. Use commas (,) or line breaks. The words will turn into little chips.",
-    step1TextareaLabel: "Write today’s English words",
-    chipsLabel:
-      "Word chips · Click a word to mark it as ★ must-use. These words are strongly requested in the story.",
-    lengthHintPrefix: "Based on the number of words, this story will be about",
-    lengthHintNormalSuffix: "5–7 short sentences.",
-    lengthHintLongSuffix: "9–12 short sentences.",
-    step2Tag: "STEP 2 · Story idea",
-    step2Title: "Create a story idea with your child",
-    step2Description:
-      "Ask your child in your own language, then write short English phrases here. The English does not have to be perfect.",
-    q1Label: "1) Who is the main character?",
-    q1Help:
-      "Name the main character. It can be your child, a pet, or a fun character.",
-    q1Placeholder: "e.g. a brave girl named Yujin",
-    q2Label: "2) Where does the story happen?",
-    q2Help:
-      "Choose a simple place like “in the park”, “in the yard”, or “in the kitchen”.",
-    q2Placeholder: "e.g. in the yard with a cat and a dog",
-    q3Label: "3) What happens in the story?",
-    q3Help:
-      "Describe a small problem or event. For example: a lost toy, a surprise guest, or trying something new.",
-    q3Placeholder: "e.g. they find a magic ship and go on a short trip",
-    createButton: "Create story",
-    step3Tag: "STEP 3 · Result",
-    step3Title: "Generated story for your child",
-    step3Empty:
-      'Fill in the steps above and press "Create story". A very simple English story will appear here.',
-    errorPrefix: "",
-    wordCountLabel: (count) =>
-      count === 0
-        ? "No words yet."
-        : `You added ${count} word${count > 1 ? "s" : ""}.`,
-    alphabetPickerLabel:
-      "Choose from alphabet cards, then click a word card to add it below. You can also type directly.",
-    letterSectionTitle: (letter) => `"${letter}" words`,
-  },
-  ko: {
-    langLabel: "KO",
-    appTitle: "AI Storybook – 오늘 배운 단어로 영어 동화 만들기",
-    appSubtitle:
-      "아이와 함께 오늘 배운 영어 단어를 넣고, 3–7세 아이를 위한 아주 쉬운 영어 동화를 만들어 보세요.",
-    step1Tag: "STEP 1 · Today’s words",
-    step1Title: "오늘 배운 영어 단어 적기",
-    step1Description:
-      "오늘 수업·숙제·책에서 등장한 영어 단어를 적어 주세요. 쉼표(,)나 줄바꿈으로 구분하면 단어 칩이 자동으로 만들어집니다.",
-    step1TextareaLabel: "오늘 배운 영어 단어 적기",
-    chipsLabel:
-      "Word chips (단어 칩) · 단어 칩을 클릭하면 ★ 표시가 생기며, 동화 속에 꼭 들어갔으면 하는 단어로 표시됩니다.",
-    lengthHintPrefix: "입력된 단어 개수 기준으로",
-    lengthHintNormalSuffix: "5–7문장 정도의 짧은 동화가 생성됩니다.",
-    lengthHintLongSuffix: "9–12문장 정도의 조금 긴 동화가 생성됩니다.",
-    step2Tag: "STEP 2 · Story idea",
-    step2Title: "아이와 함께 스토리 아이디어 만들기",
-    step2Description:
-      "아이에게 한국어로 물어보고, 부모가 간단한 영어 문장으로 대신 적어 줘도 됩니다. 완벽한 문장이 아니어도 괜찮습니다.",
-    q1Label: "1) Who is the main character?",
-    q1Help:
-      "주인공을 정해 주세요. 아이 이름, 반려동물, 상상 속 캐릭터 모두 괜찮아요.",
-    q1Placeholder: "예: a brave girl named Yujin",
-    q2Label: "2) Where does the story happen?",
-    q2Help:
-      "“in the park”, “in the yard”, “in the kitchen” 처럼 간단한 장소를 적어 주세요.",
-    q2Placeholder: "예: in the yard with a cat and a dog",
-    q3Label: "3) What happens in the story?",
-    q3Help:
-      "작은 사건이나 문제를 적어 주세요. 예: 잃어버린 장난감, 깜짝 손님, 처음 해보는 도전 등.",
-    q3Placeholder: "예: they find a magic ship and go on a short trip",
-    createButton: "Create story",
-    step3Tag: "STEP 3 · Result",
-    step3Title: "AI가 만든 우리 아이 전용 동화",
-    step3Empty:
-      '"Create story" 버튼을 누르면, 여기 아주 쉬운 영어 동화가 나타납니다.',
-    errorPrefix: "",
-    wordCountLabel: (count) =>
-      count === 0
-        ? "아직 입력된 단어가 없습니다."
-        : `지금까지 ${count}개의 단어가 들어갔어요.`,
-    alphabetPickerLabel:
-      "위의 알파벳을 누른 뒤, 아래 카드 중에서 단어를 클릭하면 자동으로 추가됩니다. 아래에 직접 입력해도 됩니다.",
-    letterSectionTitle: (letter) => `"${letter}" 로 시작하는 단어 카드`,
-  },
-  zh: {
-    langLabel: "中文",
-    appTitle: "AI Storybook – 用今天学到的单词写一个英文故事",
-    appSubtitle:
-      "输入孩子今天学到的英文单词，为 3–7 岁孩子生成一个简单、有趣的英文故事。",
-    step1Tag: "STEP 1 · Today’s words",
-    step1Title: "写下今天学到的英文单词",
-    step1Description:
-      "输入今天在课堂 / 作业 / 书里出现的英文单词。用逗号(,) 或换行分隔，单词会自动变成小标签。",
-    step1TextareaLabel: "写下今天学到的英文单词",
-    chipsLabel:
-      "Word chips · 点击单词可以标记为 ★ 必须使用，在故事中会尽量包含这些单词。",
-    lengthHintPrefix: "根据单词数量，本故事大约会有",
-    lengthHintNormalSuffix: "5–7 句短句。",
-    lengthHintLongSuffix: "9–12 句较长的故事。",
-    step2Tag: "STEP 2 · Story idea",
-    step2Title: "和孩子一起想一个故事点子",
-    step2Description:
-      "可以先用母语和孩子聊天，然后用简单英文写在这里。句子不需要完美。",
-    q1Label: "1) Who is the main character?",
-    q1Help: "写出主角，可以是孩子自己、宠物，或有趣的角色。",
-    q1Placeholder: "e.g. a brave girl named Yujin",
-    q2Label: "2) Where does the story happen?",
-    q2Help: "写一个简单的地点，例如 “in the park”“in the yard”“in the kitchen”。",
-    q2Placeholder: "e.g. in the yard with a cat and a dog",
-    q3Label: "3) What happens in the story?",
-    q3Help:
-      "写一个小事件，例如：丢失的玩具、突然来访的客人、尝试新事情等。",
-    q3Placeholder: "e.g. they find a magic ship and go on a short trip",
-    createButton: "Create story",
-    step3Tag: "STEP 3 · Result",
-    step3Title: "为孩子生成的英文故事",
-    step3Empty:
-      '完成上面的内容后点击 “Create story”，故事就会显示在这里。',
-    errorPrefix: "",
-    wordCountLabel: (count) =>
-      count === 0
-        ? "还没有单词。"
-        : `你已经输入了 ${count} 个单词。`,
-    alphabetPickerLabel:
-      "先点上面的字母，再点下面的单词卡就会自动加入。也可以直接在下面输入。",
-    letterSectionTitle: (letter) => `以 "${letter}" 开头的单词卡`,
-  },
-};
+// Supabase 이미지 URL 헬퍼 ------------------------------
+const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
+const WORD_IMAGES_BUCKET = "word-images";
+const DEFAULT_SET = "default_en";
 
-// 색상 테마
-const theme = {
-  bg: "#FFF7ED",
-  card: "#FFFFFF",
-  step1Card: "#FFEFD9",
-  step2Card: "#E6F7FB",
-  step3Card: "#F5ECFF",
-  accent: "#FF8A3C",
-  accentSoft: "#FFE1C4",
-  borderSoft: "#F1E0D1",
-  textMain: "#32261A",
-  textSub: "#6B6158",
-  chipBg: "#FFF9F3",
-  chipBorder: "#F0C9A8",
-  chipActiveBg: "#FFE4BF",
-  chipActiveBorder: "#FF9F42",
-};
-
-const ALPHABETS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("");
-
-// 스토리 길이 결정
-function computeLengthFromWords(words) {
-  const count = words.length;
-  if (count === 0) return "normal";
-  if (count <= 5) return "normal";
-  return "long"; // 6개 이상이면 long
+function getWordImageUrl(alphabet, id) {
+  // 예: alphabet = "M", id = "M_Milk"
+  if (!SUPABASE_URL) return "";
+  return `${SUPABASE_URL}/storage/v1/object/public/${WORD_IMAGES_BUCKET}/${DEFAULT_SET}/${alphabet}/${id}.png`;
 }
 
-// 텍스트를 단어 배열로 파싱
+// 공통 유틸 ---------------------------------------------
+const LETTERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("");
+
+function extractWordFromId(id) {
+  // "M_Milk" -> "Milk"
+  if (!id) return "";
+  const parts = id.split("_");
+  return (parts[1] || "").trim();
+}
+
 function parseWords(text) {
+  // textarea 내용에서 칩용 단어 배열 만들기
   return text
-    .split(/[,\\n]/)
+    .split(/[,;\n]/)
     .map((w) => w.trim())
     .filter((w) => w.length > 0);
 }
 
-export default function Home() {
-  const [lang, setLang] = useState("ko");
-  const t = TEXTS[lang];
+// 메인 컴포넌트 -----------------------------------------
+export default function HomePage() {
+  const [selectedLetter, setSelectedLetter] = useState("A");
 
-  // STEP1: 단어 입력/칩 상태
-  const [wordsInput, setWordsInput] = useState("");
-  const [words, setWords] = useState([]);
-  const [mustUse, setMustUse] = useState([]);
+  // Step 1: 오늘 단어들
+  const [todayWordsText, setTodayWordsText] = useState("");
+  const wordChips = useMemo(() => parseWords(todayWordsText), [todayWordsText]);
+  const [requiredWords, setRequiredWords] = useState([]); // ★ 표시된 단어들
 
-  // STEP2: 스토리 아이디어
-  const [answers, setAnswers] = useState({
-    mainCharacter: "",
+  // Step 2: 아이디어
+  const [idea, setIdea] = useState({
+    character: "",
     place: "",
-    problem: "",
+    event: "",
+    ending: "",
   });
 
-  // STEP3: 결과
+  // Step 3: 생성된 동화
   const [story, setStory] = useState("");
-  const [loading, setLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
 
-  // 알파벳 & 카드
-  const [selectedLetter, setSelectedLetter] = useState("M");
-  const [remoteCardsByLetter, setRemoteCardsByLetter] = useState({});
-  const [loadingCards, setLoadingCards] = useState(false);
+  // 현재 선택된 알파벳의 카드 목록
+  const currentCards = WORD_CARDS[selectedLetter] || [];
 
-  // wordsInput → words, mustUse 동기화
-  const updateWordsFromInput = (text) => {
-    const parts = parseWords(text);
-    setWords(parts);
-    setMustUse((prev) => prev.filter((w) => parts.includes(w)));
+  // 알파벳 버튼 클릭
+  const handleLetterClick = (letter) => {
+    setSelectedLetter(letter);
   };
 
-  const handleWordsBlur = () => {
-    updateWordsFromInput(wordsInput);
+  // 카드 클릭 → textarea에 단어 추가
+  const handleWordCardClick = (card) => {
+    const word = extractWordFromId(card.id);
+    if (!word) return;
+
+    setTodayWordsText((prev) => {
+      if (!prev.trim()) return word;
+      // 이미 들어있으면 중복 추가 안 함
+      const existing = parseWords(prev);
+      if (existing.includes(word)) return prev;
+      return `${prev}, ${word}`;
+    });
   };
 
-  // 카드 클릭으로 단어 추가
-  const handleAddWordFromCard = (word) => {
-    const clean = word.trim();
-    if (!clean) return;
-
-    const nextInput = wordsInput
-      ? `${wordsInput.replace(/\s*$/, "")}, ${clean}`
-      : clean;
-
-    setWordsInput(nextInput);
-    updateWordsFromInput(nextInput);
-  };
-
-  const toggleMustUse = (word) => {
-    setMustUse((prev) =>
-      prev.includes(word) ? prev.filter((w) => w !== word) : [...prev, word]
-    );
-  };
-
-  const handleAnswerChange = (field, value) => {
-    setAnswers((prev) => ({ ...prev, [field]: value }));
-  };
-
-  // Supabase에서 특정 알파벳 카드 불러오기 (있으면 사용, 없으면 WORD_CARDS fallback)
-  useEffect(() => {
-    const loadCards = async (letter) => {
-      // 이미 불러온 적 있으면 패스
-      if (remoteCardsByLetter[letter]) return;
-      if (!supabase) return;
-
-      try {
-        setLoadingCards(true);
-        const { data, error } = await supabase
-          .from("word_cards")
-          .select("id, alphabet, word, image_url")
-          .eq("alphabet", letter)
-          .order("word", { ascending: true });
-
-        if (error) {
-          console.warn("Supabase word_cards error:", error.message);
-          return;
-        }
-
-        if (data && data.length > 0) {
-          const mapped = data.map((row) => ({
-            id: row.id,
-            word: row.word,
-            imageUrl: row.image_url,
-          }));
-
-          setRemoteCardsByLetter((prev) => ({
-            ...prev,
-            [letter]: mapped,
-          }));
-        }
-      } finally {
-        setLoadingCards(false);
+  // 칩 클릭 → 필수 단어 토글 (★)
+  const handleChipClick = (word) => {
+    setRequiredWords((prev) => {
+      if (prev.includes(word)) {
+        return prev.filter((w) => w !== word);
       }
-    };
+      return [...prev, word];
+    });
+  };
 
-    loadCards(selectedLetter);
-  }, [selectedLetter, remoteCardsByLetter]);
-
-  const handleCreateStory = async () => {
+  // Step 3: 동화 생성 API 호출
+  const handleGenerateStory = async () => {
+    setIsLoading(true);
     setErrorMsg("");
     setStory("");
 
-    const trimmedWords = words.map((w) => w.trim()).filter(Boolean);
-
-    if (trimmedWords.length === 0) {
-      setErrorMsg(
-        lang === "ko"
-          ? "먼저 오늘 배운 영어 단어를 입력해 주세요."
-          : lang === "zh"
-          ? "请先输入今天学到的英文单词。"
-          : "Please enter today’s English words first."
-      );
-      return;
-    }
-
-    if (
-      !answers.mainCharacter.trim() ||
-      !answers.place.trim() ||
-      !answers.problem.trim()
-    ) {
-      setErrorMsg(
-        lang === "ko"
-          ? "STEP 2의 세 가지 질문을 모두 간단히 채워 주세요."
-          : lang === "zh"
-          ? "请先填写完 STEP 2 里的三个问题。"
-          : "Please answer all three questions in STEP 2."
-      );
-      return;
-    }
-
-    const inferredLength = computeLengthFromWords(trimmedWords);
-
-    try {
-      setLoading(true);
-
-      const res = await fetch("/api/story", {
+    try, {
+      const response = await fetch("/api/storybook", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          words: trimmedWords,
-          mustUse,
-          answers,
-          length: inferredLength,
+          words: wordChips,
+          idea,
+          requiredWords,
         }),
       });
 
-      const data = await res.json();
-
-      if (!res.ok) {
-        throw new Error(data.error || "Failed to create story.");
+      if (!response.ok) {
+        throw new Error("Story API error");
       }
 
+      const data = await response.json();
       setStory(data.story || "");
-    } catch (e) {
-      console.error(e);
-      setErrorMsg(
-        (t.errorPrefix || "") +
-          (e.message ||
-            (lang === "ko"
-              ? "알 수 없는 오류가 발생했습니다."
-              : lang === "zh"
-              ? "发生未知错误。"
-              : "Unknown error occurred."))
-      );
+    } catch (err) {
+      console.error(err);
+      setErrorMsg("동화를 만드는 동안 문제가 생겼습니다. 잠시 후 다시 시도해 주세요.");
     } finally {
-      setLoading(false);
+      setIsLoading(false);
     }
   };
 
-  const wordCount = words.length;
-  const inferredLength = computeLengthFromWords(words);
+  // 스타일 (레이아웃용, CSS 안 건드리고 여기에서 처리)
+  const cardsGridStyle = {
+    display: "grid",
+    gridTemplateColumns: "repeat(3, minmax(0, 1fr))", // 항상 3열 → 최대 3+3
+    gap: "24px",
+    marginTop: "24px",
+  };
 
-  // 현재 선택된 알파벳에 대해 Supabase > local 순으로 카드 선택
-  const localCards = WORD_CARDS[selectedLetter] || [];
-  const remoteCards = remoteCardsByLetter[selectedLetter];
-  const letterCards =
-    remoteCards && remoteCards.length > 0 ? remoteCards : localCards;
+  const wordCardStyle = {
+    borderRadius: "24px",
+    padding: "12px 12px 16px 12px",
+    backgroundColor: "#FFFFFF",
+    boxShadow: "0 8px 20px rgba(0,0,0,0.06)",
+    border: "0",
+    width: "100%",
+    cursor: "pointer",
+    display: "flex",
+    flexDirection: "column",
+    alignItems: "center",
+  };
+
+  const wordImageWrapperStyle = {
+    width: "100%",
+    aspectRatio: "4 / 3", // 가로 4 : 세로 3 비율로 조금 크게
+    borderRadius: "20px",
+    overflow: "hidden",
+    backgroundColor: "#FFF7EC",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: "8px",
+  };
+
+  const wordImageStyle = {
+    width: "100%",
+    height: "100%",
+    objectFit: "cover",
+    display: "block",
+  };
+
+  const wordLabelStyle = {
+    fontSize: "18px",
+    fontWeight: 700,
+    color: "#4A321A",
+    marginTop: "4px",
+  };
 
   return (
-    <div
-      style={{
-        minHeight: "100vh",
-        background: theme.bg,
-        padding: "32px 16px 40px",
-        display: "flex",
-        justifyContent: "center",
-      }}
-    >
-      <div
-        style={{
-          width: "100%",
-          maxWidth: 880,
-          background: theme.card,
-          borderRadius: 24,
-          boxShadow: "0 18px 55px rgba(0,0,0,0.08)",
-          padding: 28,
-        }}
-      >
-        {/* 헤더 */}
-        <header
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "flex-start",
-            marginBottom: 24,
-            gap: 16,
-          }}
-        >
-          <div>
-            <div
-              style={{
-                fontSize: 14,
-                fontWeight: 700,
-                letterSpacing: "0.08em",
-                color: theme.accent,
-                marginBottom: 6,
-              }}
-            >
-              MHJ STORYBOOK
-            </div>
-            <h1
-              style={{
-                fontSize: 26,
-                lineHeight: 1.3,
-                margin: 0,
-                color: theme.textMain,
-              }}
-            >
-              {t.appTitle}
-            </h1>
-            <p
-              style={{
-                marginTop: 6,
-                fontSize: 15,
-                lineHeight: 1.5,
-                color: theme.textSub,
-                maxWidth: 640,
-              }}
-            >
-              {t.appSubtitle}
-            </p>
-          </div>
-
-          {/* 언어 토글 */}
-          <div
-            style={{
-              display: "inline-flex",
-              borderRadius: 999,
-              border: "1px solid #E3D3C3",
-              padding: 3,
-              background: "#FFF9F3",
-              gap: 3,
-              alignSelf: "flex-start",
-            }}
-          >
-            {["en", "ko", "zh"].map((code) => {
-              const active = lang === code;
-              return (
-                <button
-                  key={code}
-                  type="button"
-                  onClick={() => setLang(code)}
-                  style={{
-                    minWidth: 40,
-                    padding: "6px 10px",
-                    borderRadius: 999,
-                    border: "none",
-                    fontSize: 13,
-                    fontWeight: 600,
-                    cursor: "pointer",
-                    background: active ? theme.accent : "transparent",
-                    color: active ? "#FFFFFF" : "#7A6755",
-                    boxShadow: active
-                      ? "0 2px 6px rgba(0,0,0,0.15)"
-                      : "none",
-                  }}
-                >
-                  {TEXTS[code].langLabel}
-                </button>
-              );
-            })}
-          </div>
+    <div className="page-root">
+      <main className="page-main">
+        <header className="page-header">
+          <h1 className="page-title">
+            AI Storybook – 오늘 배운 단어로 영어 동화 만들기
+          </h1>
+          <p className="page-subtitle">
+            아이와 함께 오늘 배운 영어 단어를 넣고, 3–7세 아이를 위한 아주 쉬운 영어 동화를 만들어 보세요.
+          </p>
         </header>
 
-        {/* STEP 1 */}
-        <section
-          style={{
-            borderRadius: 20,
-            padding: 20,
-            background: theme.step1Card,
-            border: `1px solid ${theme.borderSoft}`,
-            marginBottom: 20,
-          }}
-        >
-          <div
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              padding: "5px 10px",
-              borderRadius: 999,
-              background: theme.accentSoft,
-              color: theme.accent,
-              fontSize: 12,
-              fontWeight: 700,
-              marginBottom: 8,
-            }}
-          >
-            {t.step1Tag}
-          </div>
-          <h2
-            style={{
-              fontSize: 20,
-              margin: "0 0 4px",
-              color: theme.textMain,
-            }}
-          >
-            {t.step1Title}
-          </h2>
-          <p
-            style={{
-              margin: "0 0 14px",
-              fontSize: 15,
-              lineHeight: 1.5,
-              color: theme.textSub,
-            }}
-          >
-            {t.step1Description}
-          </p>
+        {/* STEP 1 --------------------------------------------------- */}
+        <section className="step-section">
+          <h2 className="step-title">STEP 1 · Today&apos;s words</h2>
 
-          {/* 알파벳 선택 + 카드 영역 */}
-          <div
-            style={{
-              marginBottom: 18,
-              padding: 12,
-              borderRadius: 18,
-              background: "#FFE6C8",
-              border: "1px solid #F2C79D",
-            }}
-          >
-            <div
-              style={{
-                fontSize: 14,
-                fontWeight: 600,
-                color: theme.textMain,
-                marginBottom: 8,
-              }}
-            >
-              알파벳 카드에서 단어 고르기:
-            </div>
-            <p
-              style={{
-                fontSize: 13,
-                color: theme.textSub,
-                marginTop: 0,
-                marginBottom: 8,
-              }}
-            >
-              {t.alphabetPickerLabel}
+          <div className="step-card">
+            <h3 className="block-title">오늘 배운 영어 단어 적기</h3>
+            <p className="block-desc">
+              오늘 수업·숙제·책에서 등장한 영어 단어를 적어 주세요. 쉼표(,)나 줄바꿈으로 구분하면 단어 칩이 자동으로 만들어집니다.
             </p>
 
-            {/* 알파벳 버튼 */}
-            <div
-              style={{
-                display: "flex",
-                flexWrap: "wrap",
-                gap: 8,
-                marginBottom: 10,
-              }}
-            >
-              {ALPHABETS.map((letter) => {
-                const active = selectedLetter === letter;
-                return (
+            {/* 알파벳 선택 */}
+            <div className="alphabet-picker">
+              <p className="alphabet-label">알파벳 카드에서 단어 고르기:</p>
+              <div className="alphabet-buttons">
+                {LETTERS.map((letter) => (
                   <button
                     key={letter}
                     type="button"
-                    onClick={() => setSelectedLetter(letter)}
-                    style={{
-                      width: 40,
-                      height: 40,
-                      borderRadius: 999,
-                      border: active ? "2px solid #FF8A3C" : "1px solid #E3D3C3",
-                      background: active ? "#FFE8D3" : "#FFF9F3",
-                      fontSize: 16,
-                      fontWeight: 600,
-                      cursor: "pointer",
-                      color: theme.textMain,
-                    }}
+                    onClick={() => handleLetterClick(letter)}
+                    className={
+                      letter === selectedLetter
+                        ? "alphabet-button alphabet-button--active"
+                        : "alphabet-button"
+                    }
                   >
                     {letter}
                   </button>
-                );
-              })}
+                ))}
+              </div>
             </div>
 
-            {/* 선택된 알파벳 단어 카드들 */}
-            <div
-              style={{
-                fontSize: 14,
-                fontWeight: 600,
-                color: theme.textMain,
-                margin: "8px 0 6px",
-              }}
-            >
-              {t.letterSectionTitle(selectedLetter)}
+            {/* 단어 카드 그리드 (3 + 3, 이미지 확대) */}
+            <div className="word-cards-block">
+              <p className="block-subtitle">
+                &quot;{selectedLetter}&quot; 로 시작하는 단어 카드
+              </p>
+
+              <div style={cardsGridStyle}>
+                {currentCards.map((card) => {
+                  const word = extractWordFromId(card.id);
+                  const imgSrc = getWordImageUrl(selectedLetter, card.id);
+
+                  return (
+                    <button
+                      key={card.id}
+                      type="button"
+                      style={wordCardStyle}
+                      onClick={() => handleWordCardClick(card)}
+                    >
+                      <div style={wordImageWrapperStyle}>
+                        {imgSrc ? (
+                          <img
+                            src={imgSrc}
+                            alt={word || card.id}
+                            style={wordImageStyle}
+                          />
+                        ) : null}
+                      </div>
+                      <div style={wordLabelStyle}>{word}</div>
+                    </button>
+                  );
+                })}
+              </div>
             </div>
 
-            <div
-              style={{
-                display: "flex",
-                flexWrap: "wrap",
-                gap: 12,
-                minHeight: 80,
-              }}
-            >
-              {loadingCards && letterCards.length === 0 && (
-                <span style={{ fontSize: 13, color: "#B0A49A" }}>
-                  Loading cards…
-                </span>
-              )}
-
-              {!loadingCards && letterCards.length === 0 && (
-                <span style={{ fontSize: 13, color: "#B0A49A" }}>
-                  아직 준비된 카드가 없습니다.
-                </span>
-              )}
-
-              {letterCards.map((card) => (
-                <button
-                  key={card.id || card.word}
-                  type="button"
-                  onClick={() => handleAddWordFromCard(card.word)}
-                  style={{
-                    width: 140,
-                    borderRadius: 18,
-                    border: "1px solid #E3D3C3",
-                    background: "#FFFFFF",
-                    padding: 10,
-                    textAlign: "center",
-                    cursor: "pointer",
-                    boxShadow: "0 6px 12px rgba(0,0,0,0.04)",
-                  }}
-                >
-                  <div
-                    style={{
-                      width: "100%",
-                      height: 80,
-                      borderRadius: 14,
-                      background: "#FFF7ED",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      overflow: "hidden",
-                      marginBottom: 6,
-                    }}
-                  >
-                    {card.imageUrl ? (
-                      <img
-                        src={card.imageUrl}
-                        alt={card.word}
-                        style={{
-                          maxWidth: "100%",
-                          maxHeight: "100%",
-                          objectFit: "contain",
-                          display: "block",
-                        }}
-                      />
-                    ) : (
-                      <span
-                        style={{
-                          fontSize: 14,
-                          color: "#B0A49A",
-                        }}
-                      >
-                        {card.word}
-                      </span>
-                    )}
-                  </div>
-                  <div
-                    style={{
-                      fontSize: 15,
-                      fontWeight: 700,
-                      color: theme.textMain,
-                    }}
-                  >
-                    {card.word}
-                  </div>
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* 자유 입력 영역 */}
-          <label
-            style={{
-              display: "block",
-              fontSize: 14,
-              marginBottom: 6,
-              color: theme.textMain,
-              fontWeight: 600,
-            }}
-          >
-            {t.step1TextareaLabel}
-          </label>
-          <textarea
-            value={wordsInput}
-            onChange={(e) => setWordsInput(e.target.value)}
-            onBlur={handleWordsBlur}
-            rows={4}
-            placeholder="apple, banana, princess, ship"
-            style={{
-              width: "100%",
-              resize: "vertical",
-              padding: 12,
-              borderRadius: 14,
-              border: "1px solid #E3D3C3",
-              fontSize: 15,
-              lineHeight: 1.5,
-              outline: "none",
-              boxSizing: "border-box",
-            }}
-          />
-
-          {/* 칩 & 길이 힌트 */}
-          <div style={{ marginTop: 12 }}>
-            <div
-              style={{
-                fontSize: 14,
-                color: theme.textMain,
-                marginBottom: 4,
-              }}
-            >
-              {t.chipsLabel}
-            </div>
-            <div
-              style={{
-                fontSize: 13,
-                color: theme.textSub,
-                marginBottom: 6,
-              }}
-            >
-              {t.wordCountLabel(wordCount)}{" "}
-              {wordCount > 0 && (
-                <>
-                  · {t.lengthHintPrefix}{" "}
-                  <strong>
-                    {inferredLength === "normal"
-                      ? t.lengthHintNormalSuffix
-                      : t.lengthHintLongSuffix}
-                  </strong>
-                </>
-              )}
+            {/* 오늘 단어 입력 textarea */}
+            <div className="today-words-input-block">
+              <h4 className="block-subtitle">오늘 배운 영어 단어 적기</h4>
+              <textarea
+                className="today-words-textarea"
+                value={todayWordsText}
+                onChange={(e) => setTodayWordsText(e.target.value)}
+                placeholder="apple, banana 처럼 입력한 뒤 바깥을 클릭해 보세요."
+                rows={4}
+              />
             </div>
 
-            <div
-              style={{
-                display: "flex",
-                flexWrap: "wrap",
-                gap: 8,
-                minHeight: 32,
-                alignItems: "center",
-              }}
-            >
-              {words.length === 0 && (
-                <span style={{ fontSize: 13, color: "#B0A49A" }}>
-                  apple, banana 처럼 입력한 뒤 바깥을 클릭해 보세요.
-                </span>
-              )}
-              {words.map((w) => {
-                const isMust = mustUse.includes(w);
-                return (
-                  <button
-                    key={w}
-                    type="button"
-                    onClick={() => toggleMustUse(w)}
-                    style={{
-                      padding: "6px 12px",
-                      borderRadius: 999,
-                      border: `1px solid ${
-                        isMust ? theme.chipActiveBorder : theme.chipBorder
-                      }`,
-                      background: isMust ? theme.chipActiveBg : theme.chipBg,
-                      fontSize: 14,
-                      cursor: "pointer",
-                      display: "inline-flex",
-                      alignItems: "center",
-                      gap: 4,
-                    }}
-                  >
-                    {isMust && <span>★</span>}
-                    <span>{w}</span>
-                  </button>
-                );
-              })}
+            {/* 단어 칩 */}
+            <div className="word-chips-block">
+              <p className="chips-title">
+                Word chips (단어 칩) · 단어 칩을 클릭하면 ★ 표시가 생기며, 동화 속에 꼭 들어갔으면 하는 단어로 표시됩니다.
+              </p>
+              <div className="chips-row">
+                {wordChips.length === 0 && (
+                  <span className="chips-empty">
+                    아직 입력된 단어가 없습니다.
+                  </span>
+                )}
+                {wordChips.map((word) => {
+                  const isRequired = requiredWords.includes(word);
+                  return (
+                    <button
+                      key={word}
+                      type="button"
+                      className={
+                        isRequired
+                          ? "chip chip--required"
+                          : "chip"
+                      }
+                      onClick={() => handleChipClick(word)}
+                    >
+                      {word}
+                      {isRequired && <span className="chip-star">★</span>}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
           </div>
         </section>
 
-        {/* STEP 2 */}
-        <section
-          style={{
-            borderRadius: 20,
-            padding: 20,
-            background: theme.step2Card,
-            border: "1px solid #D2E7F1",
-            marginBottom: 20,
-          }}
-        >
-          <div
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              padding: "5px 10px",
-              borderRadius: 999,
-              background: "#D3F0F9",
-              color: "#2883A8",
-              fontSize: 12,
-              fontWeight: 700,
-              marginBottom: 8,
-            }}
-          >
-            {t.step2Tag}
-          </div>
-          <h2
-            style={{
-              fontSize: 20,
-              margin: "0 0 4px",
-              color: theme.textMain,
-            }}
-          >
-            {t.step2Title}
-          </h2>
-          <p
-            style={{
-              margin: "0 0 14px",
-              fontSize: 15,
-              lineHeight: 1.5,
-              color: theme.textSub,
-            }}
-          >
-            {t.step2Description}
-          </p>
+        {/* STEP 2 --------------------------------------------------- */}
+        <section className="step-section">
+          <h2 className="step-title">STEP 2 · 아이가 원하는 이야기 설정</h2>
 
-          {/* Q1 */}
-          <div style={{ marginBottom: 14 }}>
-            <label
-              style={{
-                display: "block",
-                fontSize: 15,
-                fontWeight: 600,
-                marginBottom: 4,
-                color: theme.textMain,
-              }}
-            >
-              {t.q1Label}
-            </label>
-            <div
-              style={{
-                fontSize: 13,
-                color: theme.textSub,
-                marginBottom: 4,
-              }}
-            >
-              {t.q1Help}
+          <div className="step-card">
+            <p className="block-desc">
+              아이에게 물어보거나, 아이가 스스로 적게 해 주세요. 모두 간단한 한국어로 적어도 괜찮습니다.
+            </p>
+
+            <div className="idea-grid">
+              <div className="idea-field">
+                <label className="idea-label">주인공은 누구인가요?</label>
+                <textarea
+                  className="idea-textarea"
+                  rows={2}
+                  value={idea.character}
+                  onChange={(e) =>
+                    setIdea((prev) => ({ ...prev, character: e.target.value }))
+                  }
+                />
+              </div>
+              <div className="idea-field">
+                <label className="idea-label">어디에서 벌어지는 이야기인가요?</label>
+                <textarea
+                  className="idea-textarea"
+                  rows={2}
+                  value={idea.place}
+                  onChange={(e) =>
+                    setIdea((prev) => ({ ...prev, place: e.target.value }))
+                  }
+                />
+              </div>
+              <div className="idea-field">
+                <label className="idea-label">어떤 일이 일어나나요?</label>
+                <textarea
+                  className="idea-textarea"
+                  rows={3}
+                  value={idea.event}
+                  onChange={(e) =>
+                    setIdea((prev) => ({ ...prev, event: e.target.value }))
+                  }
+                />
+              </div>
+              <div className="idea-field">
+                <label className="idea-label">이야기가 어떻게 끝나면 좋을까요?</label>
+                <textarea
+                  className="idea-textarea"
+                  rows={3}
+                  value={idea.ending}
+                  onChange={(e) =>
+                    setIdea((prev) => ({ ...prev, ending: e.target.value }))
+                  }
+                />
+              </div>
             </div>
-            <input
-              type="text"
-              value={answers.mainCharacter}
-              onChange={(e) =>
-                handleAnswerChange("mainCharacter", e.target.value)
-              }
-              placeholder={t.q1Placeholder}
-              style={inputStyle}
-            />
           </div>
+        </section>
 
-          {/* Q2 */}
-          <div style={{ marginBottom: 14 }}>
-            <label
-              style={{
-                display: "block",
-                fontSize: 15,
-                fontWeight: 600,
-                marginBottom: 4,
-                color: theme.textMain,
-              }}
-            >
-              {t.q2Label}
-            </label>
-            <div
-              style={{
-                fontSize: 13,
-                color: theme.textSub,
-                marginBottom: 4,
-              }}
-            >
-              {t.q2Help}
-            </div>
-            <input
-              type="text"
-              value={answers.place}
-              onChange={(e) => handleAnswerChange("place", e.target.value)}
-              placeholder={t.q2Placeholder}
-              style={inputStyle}
-            />
-          </div>
+        {/* STEP 3 --------------------------------------------------- */}
+        <section className="step-section">
+          <h2 className="step-title">STEP 3 · 영어 동화 만들기</h2>
 
-          {/* Q3 */}
-          <div style={{ marginBottom: 18 }}>
-            <label
-              style={{
-                display: "block",
-                fontSize: 15,
-                fontWeight: 600,
-                marginBottom: 4,
-                color: theme.textMain,
-              }}
-            >
-              {t.q3Label}
-            </label>
-            <div
-              style={{
-                fontSize: 13,
-                color: theme.textSub,
-                marginBottom: 4,
-              }}
-            >
-              {t.q3Help}
-            </div>
-            <input
-              type="text"
-              value={answers.problem}
-              onChange={(e) => handleAnswerChange("problem", e.target.value)}
-              placeholder={t.q3Placeholder}
-              style={inputStyle}
-            />
-          </div>
+          <div className="step-card">
+            <p className="block-desc">
+              위에서 적은 오늘의 단어들과 아이의 아이디어를 바탕으로, 아주 쉬운 영어 동화를 만듭니다.
+            </p>
 
-          {/* 버튼 + 에러 */}
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 12,
-              flexWrap: "wrap",
-            }}
-          >
             <button
               type="button"
-              onClick={handleCreateStory}
-              disabled={loading}
-              style={{
-                padding: "10px 22px",
-                borderRadius: 999,
-                border: "none",
-                background: theme.accent,
-                color: "#FFFFFF",
-                fontSize: 16,
-                fontWeight: 700,
-                cursor: "pointer",
-                boxShadow: "0 4px 12px rgba(0,0,0,0.18)",
-                opacity: loading ? 0.75 : 1,
-              }}
+              className="primary-button"
+              onClick={handleGenerateStory}
+              disabled={isLoading || wordChips.length === 0}
             >
-              {loading ? "Creating..." : t.createButton}
+              {isLoading ? "동화 만드는 중..." : "영어 동화 만들기"}
             </button>
+
             {errorMsg && (
-              <div
-                style={{
-                  fontSize: 13,
-                  color: "#C62828",
-                  maxWidth: 420,
-                }}
-              >
+              <p className="error-text" style={{ marginTop: "12px" }}>
                 {errorMsg}
+              </p>
+            )}
+
+            {story && (
+              <div className="story-output">
+                <h3 className="block-subtitle">생성된 영어 동화</h3>
+                <pre className="story-text">{story}</pre>
               </div>
             )}
           </div>
         </section>
-
-        {/* STEP 3 */}
-        <section
-          style={{
-            borderRadius: 20,
-            padding: 20,
-            background: theme.step3Card,
-            border: "1px solid #E0D4FF",
-          }}
-        >
-          <div
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              padding: "5px 10px",
-              borderRadius: 999,
-              background: "#E3D6FF",
-              color: "#5A3AC2",
-              fontSize: 12,
-              fontWeight: 700,
-              marginBottom: 8,
-            }}
-          >
-            {t.step3Tag}
-          </div>
-          <h2
-            style={{
-              fontSize: 20,
-              margin: "0 0 10px",
-              color: theme.textMain,
-            }}
-          >
-            {t.step3Title}
-          </h2>
-
-          {!story && (
-            <p
-              style={{
-                fontSize: 15,
-                color: theme.textSub,
-                margin: 0,
-              }}
-            >
-              {t.step3Empty}
-            </p>
-          )}
-
-          {story && (
-            <div
-              style={{
-                marginTop: 6,
-                padding: 16,
-                borderRadius: 16,
-                background: "#FFFFFF",
-                fontSize: 16,
-                lineHeight: 1.7,
-                whiteSpace: "pre-wrap",
-                border: "1px solid #E2D8FF",
-              }}
-            >
-              {story}
-            </div>
-          )}
-        </section>
-      </div>
+      </main>
     </div>
   );
 }
-
-const inputStyle = {
-  width: "100%",
-  padding: 11,
-  borderRadius: 14,
-  border: "1px solid #D6C7B8",
-  fontSize: 15,
-  boxSizing: "border-box",
-};
