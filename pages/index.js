@@ -4,7 +4,7 @@ import { supabase } from "../lib/supabaseClient";
 
 // Supabase 스토리지 설정
 const BUCKET_NAME = "word-images";
-const BASE_FOLDER = "default_en"; // word-images/default_en/<Letter>/ 파일 구조
+const BASE_FOLDER = "default_en"; // word-images/default_en/<Letter>/ 파일 구조를 기본 가정
 
 // UI용 상수
 const LETTERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("");
@@ -148,28 +148,62 @@ export default function HomePage() {
       setIsLoadingCards(true);
       setCardsError("");
       try {
-        const folderPath = `${BASE_FOLDER}/${selectedLetter}`;
+        // 경로 후보들을 순서대로 시도 (실제 버킷 구조에 맞는 첫 번째 성공 경로 사용)
+        const candidatePaths = [
+          `${BASE_FOLDER}/${selectedLetter}/`,
+          `${BASE_FOLDER}/${selectedLetter}`,
+          `${selectedLetter}/`,
+          `${selectedLetter}`,
+        ];
 
-        const { data, error } = await supabase.storage
-          .from(BUCKET_NAME)
-          .list(folderPath, {
-            limit: 50,
-            offset: 0,
-            sortBy: { column: "name", order: "asc" },
-          });
+        let usedPath = null;
+        let files = [];
+        let lastError = null;
 
-        if (error) throw error;
-        if (!data) {
-          if (!isCancelled) setCards([]);
+        for (const path of candidatePaths) {
+          const { data, error } = await supabase.storage
+            .from(BUCKET_NAME)
+            .list(path, {
+              limit: 50,
+              offset: 0,
+              sortBy: { column: "name", order: "asc" },
+            });
+
+          if (error) {
+            lastError = error;
+            continue;
+          }
+          if (data && data.length > 0) {
+            usedPath = path.replace(/\/$/, ""); // 끝의 슬래시 제거
+            files = data;
+            break;
+          }
+        }
+
+        if (!usedPath) {
+          // 시도한 경로들 중 어떤 것에서도 파일을 못 찾은 경우
+          if (lastError) {
+            console.error("Failed to load cards:", lastError);
+            if (!isCancelled) {
+              setCardsError("카드를 불러오는 중 문제가 발생했습니다.");
+              setCards([]);
+            }
+          } else {
+            if (!isCancelled) {
+              setCards([]);
+            }
+          }
           return;
         }
 
-        const imageFiles = data.filter((file) =>
+        const imageFiles = files.filter((file) =>
           file.name.toLowerCase().match(/\.(png|jpg|jpeg|webp)$/)
         );
 
         const newCards = imageFiles.map((file) => {
-          const fullPath = `${folderPath}/${file.name}`;
+          const fullPath =
+            usedPath === "" ? file.name : `${usedPath}/${file.name}`;
+
           const { data: publicUrlData } = supabase.storage
             .from(BUCKET_NAME)
             .getPublicUrl(fullPath);
@@ -304,7 +338,7 @@ export default function HomePage() {
           place,
           action,
           ending,
-          language, // "en" | "ko" | "zh" – API 쪽에서 사용
+          language, // "en" | "ko" | "zh"
         }),
       });
 
@@ -327,7 +361,7 @@ export default function HomePage() {
     }
   };
 
-  // 간단한 스타일 (CSS 없는 환경에서도 최소한 보기 좋게)
+  // 간단한 스타일
   const styles = {
     page: {
       minHeight: "100vh",
@@ -386,19 +420,20 @@ export default function HomePage() {
     alphabetRow: {
       display: "flex",
       flexWrap: "wrap",
-      gap: "8px",
-      marginBottom: "12px",
+      gap: "10px",
+      marginBottom: "8px",
     },
     alphabetButton: (active) => ({
-      width: "32px",
-      height: "32px",
+      width: "40px",
+      height: "40px",
       borderRadius: "999px",
       border: "0",
       background: active ? "#FF8C41" : "#FFF8F0",
       color: active ? "#fff" : "#7a4c25",
       boxShadow: active ? "0 0 0 2px rgba(0,0,0,0.08)" : "none",
       cursor: "pointer",
-      fontWeight: 600,
+      fontWeight: 700,
+      fontSize: "16px",
     }),
     cardsGrid: {
       display: "grid",
@@ -531,6 +566,10 @@ export default function HomePage() {
 
   const selectedCount = selectedWords.length;
 
+  // 알파벳 두 줄로 나누기 (A~M, N~Z)
+  const firstRowLetters = LETTERS.slice(0, 13);
+  const secondRowLetters = LETTERS.slice(13);
+
   return (
     <div style={styles.page}>
       <main style={styles.container}>
@@ -570,9 +609,21 @@ export default function HomePage() {
           <div style={styles.stepSubtitle}>{t.step1Subtitle}</div>
 
           <div style={{ fontSize: 13, marginBottom: 6 }}>{t.pickFromCards}</div>
-          {/* 알파벳 버튼 */}
+          {/* 알파벳 버튼 2줄 */}
           <div style={styles.alphabetRow}>
-            {LETTERS.map((letter) => (
+            {firstRowLetters.map((letter) => (
+              <button
+                key={letter}
+                type="button"
+                style={styles.alphabetButton(letter === selectedLetter)}
+                onClick={() => setSelectedLetter(letter)}
+              >
+                {letter}
+              </button>
+            ))}
+          </div>
+          <div style={styles.alphabetRow}>
+            {secondRowLetters.map((letter) => (
               <button
                 key={letter}
                 type="button"
