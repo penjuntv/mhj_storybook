@@ -1,8 +1,9 @@
 // pages/index.js
 import { useEffect, useState } from "react";
 import { supabase } from "../lib/supabaseClient";
-import { LETTER_IMAGES, WORD_CARDS as LOCAL_WORD_CARDS } from "../data/wordCards";
+import { WORD_CARDS } from "../data/wordCards";
 
+// 다국어 텍스트
 const TEXTS = {
   en: {
     langLabel: "EN",
@@ -14,9 +15,6 @@ const TEXTS = {
     step1Description:
       "Type the English words from today’s class / homework / book. Use commas (,) or line breaks. The words will turn into little chips.",
     step1TextareaLabel: "Write today’s English words",
-    step1AlphaTitle: "Pick words from alphabet cards:",
-    step1AlphaHelp:
-      "Tap a letter, then tap a card to add that word. You can still type words manually below.",
     chipsLabel:
       "Word chips · Click a word to mark it as ★ must-use. These words are strongly requested in the story.",
     lengthHintPrefix: "Based on the number of words, this story will be about",
@@ -32,7 +30,7 @@ const TEXTS = {
     q1Placeholder: "e.g. a brave girl named Yujin",
     q2Label: "2) Where does the story happen?",
     q2Help:
-      'Choose a simple place like “in the park”, “in the yard”, or “in the kitchen”.',
+      "Choose a simple place like “in the park”, “in the yard”, or “in the kitchen”.",
     q2Placeholder: "e.g. in the yard with a cat and a dog",
     q3Label: "3) What happens in the story?",
     q3Help:
@@ -48,6 +46,9 @@ const TEXTS = {
       count === 0
         ? "No words yet."
         : `You added ${count} word${count > 1 ? "s" : ""}.`,
+    alphabetPickerLabel:
+      "Choose from alphabet cards, then click a word card to add it below. You can also type directly.",
+    letterSectionTitle: (letter) => `"${letter}" words`,
   },
   ko: {
     langLabel: "KO",
@@ -59,9 +60,6 @@ const TEXTS = {
     step1Description:
       "오늘 수업·숙제·책에서 등장한 영어 단어를 적어 주세요. 쉼표(,)나 줄바꿈으로 구분하면 단어 칩이 자동으로 만들어집니다.",
     step1TextareaLabel: "오늘 배운 영어 단어 적기",
-    step1AlphaTitle: "알파벳 카드에서 단어 고르기:",
-    step1AlphaHelp:
-      "위의 알파벳을 누른 뒤, 아래 카드 중에서 단어를 클릭하면 자동으로 추가됩니다. 아래에 직접 입력해도 됩니다.",
     chipsLabel:
       "Word chips (단어 칩) · 단어 칩을 클릭하면 ★ 표시가 생기며, 동화 속에 꼭 들어갔으면 하는 단어로 표시됩니다.",
     lengthHintPrefix: "입력된 단어 개수 기준으로",
@@ -93,6 +91,9 @@ const TEXTS = {
       count === 0
         ? "아직 입력된 단어가 없습니다."
         : `지금까지 ${count}개의 단어가 들어갔어요.`,
+    alphabetPickerLabel:
+      "위의 알파벳을 누른 뒤, 아래 카드 중에서 단어를 클릭하면 자동으로 추가됩니다. 아래에 직접 입력해도 됩니다.",
+    letterSectionTitle: (letter) => `"${letter}" 로 시작하는 단어 카드`,
   },
   zh: {
     langLabel: "中文",
@@ -104,9 +105,6 @@ const TEXTS = {
     step1Description:
       "输入今天在课堂 / 作业 / 书里出现的英文单词。用逗号(,) 或换行分隔，单词会自动变成小标签。",
     step1TextareaLabel: "写下今天学到的英文单词",
-    step1AlphaTitle: "从字母卡片中选择单词：",
-    step1AlphaHelp:
-      "先点字母，再点下面的卡片，就会自动把这个单词加到输入框里。",
     chipsLabel:
       "Word chips · 点击单词可以标记为 ★ 必须使用，在故事中会尽量包含这些单词。",
     lengthHintPrefix: "根据单词数量，本故事大约会有",
@@ -136,9 +134,13 @@ const TEXTS = {
       count === 0
         ? "还没有单词。"
         : `你已经输入了 ${count} 个单词。`,
+    alphabetPickerLabel:
+      "先点上面的字母，再点下面的单词卡就会自动加入。也可以直接在下面输入。",
+    letterSectionTitle: (letter) => `以 "${letter}" 开头的单词卡`,
   },
 };
 
+// 색상 테마
 const theme = {
   bg: "#FFF7ED",
   card: "#FFFFFF",
@@ -156,7 +158,9 @@ const theme = {
   chipActiveBorder: "#FF9F42",
 };
 
-// 단어 개수에 따라 스토리 길이 추론
+const ALPHABETS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("");
+
+// 스토리 길이 결정
 function computeLengthFromWords(words) {
   const count = words.length;
   if (count === 0) return "normal";
@@ -164,117 +168,62 @@ function computeLengthFromWords(words) {
   return "long"; // 6개 이상이면 long
 }
 
-// 카드 id 에서 단어 라벨 뽑기 (예: "M_Milk" -> "Milk")
-function getWordLabelFromId(id) {
-  if (!id) return "";
-  const parts = id.split("_");
-  const raw = parts.length > 1 ? parts.slice(1).join("_") : id;
-  // 단어 첫 글자만 대문자
-  return raw
-    .replace(/-/g, " ")
-    .replace(/\b\w/g, (ch) => ch.toUpperCase());
+// 텍스트를 단어 배열로 파싱
+function parseWords(text) {
+  return text
+    .split(/[,\\n]/)
+    .map((w) => w.trim())
+    .filter((w) => w.length > 0);
 }
 
 export default function Home() {
-  const [lang, setLang] = useState("ko"); // 기본 KO
+  const [lang, setLang] = useState("ko");
   const t = TEXTS[lang];
 
-  // Supabase 에서 불러온 단어 카드 (없으면 null)
-  const [wordCardsFromDb, setWordCardsFromDb] = useState(null);
-  const [loadingCards, setLoadingCards] = useState(false);
-  const [loadCardsError, setLoadCardsError] = useState("");
-
-  // 알파벳 선택
-  const [selectedLetter, setSelectedLetter] = useState("M");
-
-  // 스텝1: 단어 입력
+  // STEP1: 단어 입력/칩 상태
   const [wordsInput, setWordsInput] = useState("");
   const [words, setWords] = useState([]);
   const [mustUse, setMustUse] = useState([]);
 
-  // 스텝2
+  // STEP2: 스토리 아이디어
   const [answers, setAnswers] = useState({
     mainCharacter: "",
     place: "",
     problem: "",
   });
 
-  // 결과
+  // STEP3: 결과
   const [story, setStory] = useState("");
-  const [loadingStory, setLoadingStory] = useState(false);
+  const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
 
-  // ------------------- Supabase에서 단어 카드 불러오기 -------------------
-  useEffect(() => {
-    async function loadCards() {
-      // Supabase env 안 들어있으면 바로 로컬 데이터 사용
-      if (!supabase) return;
+  // 알파벳 & 카드
+  const [selectedLetter, setSelectedLetter] = useState("M");
+  const [remoteCardsByLetter, setRemoteCardsByLetter] = useState({});
+  const [loadingCards, setLoadingCards] = useState(false);
 
-      try {
-        setLoadingCards(true);
-        setLoadCardsError("");
-
-        // 1) word_sets 에서 기본 세트 하나 가져오기 (지금은 첫 번째 세트만 사용)
-        const { data: sets, error: setErr } = await supabase
-          .from("word_sets")
-          .select("*")
-          .order("id", { ascending: true })
-          .limit(1);
-
-        if (setErr) throw setErr;
-        if (!sets || sets.length === 0) {
-          // 세트가 없으면 그냥 로컬 데이터 사용
-          return;
-        }
-
-        const setId = sets[0].id;
-
-        // 2) 해당 세트의 word_cards 전부 가져오기
-        const { data: cards, error: cardsErr } = await supabase
-          .from("word_cards")
-          .select("alphabet, word, image_url")
-          .eq("set_id", setId);
-
-        if (cardsErr) throw cardsErr;
-        if (!cards || cards.length === 0) return;
-
-        // 3) A~Z 기준으로 정리
-        const grouped = {};
-        for (const row of cards) {
-          const alpha = (row.alphabet || "").toUpperCase();
-          if (!alpha) continue;
-          if (!grouped[alpha]) grouped[alpha] = [];
-
-          grouped[alpha].push({
-            id: row.word, // "Milk"
-            imageUrl: row.image_url || "",
-          });
-        }
-
-        setWordCardsFromDb(grouped);
-      } catch (err) {
-        console.error("Error loading cards from Supabase:", err);
-        setLoadCardsError("Supabase에서 단어 카드를 불러오지 못했습니다. (로컬 데이터 사용)");
-      } finally {
-        setLoadingCards(false);
-      }
-    }
-
-    loadCards();
-  }, []);
-
-  // 실제로 쓸 단어 카드: Supabase가 있으면 그걸, 없으면 로컬 wordCards.js
-  const effectiveWordCards = wordCardsFromDb || LOCAL_WORD_CARDS;
-
-  // ------------------- 스텝1: 단어 입력/칩 처리 -------------------
-  const handleWordsBlur = () => {
-    const parts = wordsInput
-      .split(/[,\\n]/)
-      .map((w) => w.trim())
-      .filter((w) => w.length > 0);
-
+  // wordsInput → words, mustUse 동기화
+  const updateWordsFromInput = (text) => {
+    const parts = parseWords(text);
     setWords(parts);
     setMustUse((prev) => prev.filter((w) => parts.includes(w)));
+  };
+
+  const handleWordsBlur = () => {
+    updateWordsFromInput(wordsInput);
+  };
+
+  // 카드 클릭으로 단어 추가
+  const handleAddWordFromCard = (word) => {
+    const clean = word.trim();
+    if (!clean) return;
+
+    const nextInput = wordsInput
+      ? `${wordsInput.replace(/\s*$/, "")}, ${clean}`
+      : clean;
+
+    setWordsInput(nextInput);
+    updateWordsFromInput(nextInput);
   };
 
   const toggleMustUse = (word) => {
@@ -283,40 +232,55 @@ export default function Home() {
     );
   };
 
-  // 알파벳 카드에서 단어 클릭했을 때 입력창에 추가
-  const addWordFromCard = (wordText) => {
-    const clean = wordText.trim();
-    if (!clean) return;
-
-    // 이미 있는지 검사
-    const existing = wordsInput
-      .split(/[,\\n]/)
-      .map((w) => w.trim().toLowerCase())
-      .filter(Boolean);
-
-    if (existing.includes(clean.toLowerCase())) {
-      return;
-    }
-
-    const current = wordsInput.trim();
-    const next = current ? `${current}, ${clean}` : clean;
-    setWordsInput(next);
-  };
-
-  // ------------------- 스텝2: 스토리 아이디어 -------------------
   const handleAnswerChange = (field, value) => {
     setAnswers((prev) => ({ ...prev, [field]: value }));
   };
 
-  // ------------------- 스토리 생성 -------------------
+  // Supabase에서 특정 알파벳 카드 불러오기 (있으면 사용, 없으면 WORD_CARDS fallback)
+  useEffect(() => {
+    const loadCards = async (letter) => {
+      // 이미 불러온 적 있으면 패스
+      if (remoteCardsByLetter[letter]) return;
+      if (!supabase) return;
+
+      try {
+        setLoadingCards(true);
+        const { data, error } = await supabase
+          .from("word_cards")
+          .select("id, alphabet, word, image_url")
+          .eq("alphabet", letter)
+          .order("word", { ascending: true });
+
+        if (error) {
+          console.warn("Supabase word_cards error:", error.message);
+          return;
+        }
+
+        if (data && data.length > 0) {
+          const mapped = data.map((row) => ({
+            id: row.id,
+            word: row.word,
+            imageUrl: row.image_url,
+          }));
+
+          setRemoteCardsByLetter((prev) => ({
+            ...prev,
+            [letter]: mapped,
+          }));
+        }
+      } finally {
+        setLoadingCards(false);
+      }
+    };
+
+    loadCards(selectedLetter);
+  }, [selectedLetter, remoteCardsByLetter]);
+
   const handleCreateStory = async () => {
     setErrorMsg("");
     setStory("");
 
-    const trimmedWords = wordsInput
-      .split(/[,\\n]/)
-      .map((w) => w.trim())
-      .filter(Boolean);
+    const trimmedWords = words.map((w) => w.trim()).filter(Boolean);
 
     if (trimmedWords.length === 0) {
       setErrorMsg(
@@ -347,7 +311,7 @@ export default function Home() {
     const inferredLength = computeLengthFromWords(trimmedWords);
 
     try {
-      setLoadingStory(true);
+      setLoading(true);
 
       const res = await fetch("/api/story", {
         method: "POST",
@@ -379,23 +343,18 @@ export default function Home() {
               : "Unknown error occurred."))
       );
     } finally {
-      setLoadingStory(false);
+      setLoading(false);
     }
   };
 
-  const wordCount = wordsInput
-    .split(/[,\\n]/)
-    .map((w) => w.trim())
-    .filter(Boolean).length;
+  const wordCount = words.length;
+  const inferredLength = computeLengthFromWords(words);
 
-  const inferredLength = computeLengthFromWords(
-    wordsInput
-      .split(/[,\\n]/)
-      .map((w) => w.trim())
-      .filter(Boolean)
-  );
-
-  const currentCards = effectiveWordCards[selectedLetter] || [];
+  // 현재 선택된 알파벳에 대해 Supabase > local 순으로 카드 선택
+  const localCards = WORD_CARDS[selectedLetter] || [];
+  const remoteCards = remoteCardsByLetter[selectedLetter];
+  const letterCards =
+    remoteCards && remoteCards.length > 0 ? remoteCards : localCards;
 
   return (
     <div
@@ -548,35 +507,36 @@ export default function Home() {
             {t.step1Description}
           </p>
 
-          {/* 알파벳 카드 선택 영역 */}
+          {/* 알파벳 선택 + 카드 영역 */}
           <div
             style={{
-              marginBottom: 16,
+              marginBottom: 18,
               padding: 12,
-              borderRadius: 16,
-              background: "#FFE8CD",
-              border: "1px solid #F1D3B8",
+              borderRadius: 18,
+              background: "#FFE6C8",
+              border: "1px solid #F2C79D",
             }}
           >
             <div
               style={{
-                fontSize: 15,
+                fontSize: 14,
                 fontWeight: 600,
-                marginBottom: 6,
                 color: theme.textMain,
+                marginBottom: 8,
               }}
             >
-              {t.step1AlphaTitle}
+              알파벳 카드에서 단어 고르기:
             </div>
-            <div
+            <p
               style={{
                 fontSize: 13,
                 color: theme.textSub,
-                marginBottom: 10,
+                marginTop: 0,
+                marginBottom: 8,
               }}
             >
-              {t.step1AlphaHelp}
-            </div>
+              {t.alphabetPickerLabel}
+            </p>
 
             {/* 알파벳 버튼 */}
             <div
@@ -584,146 +544,128 @@ export default function Home() {
                 display: "flex",
                 flexWrap: "wrap",
                 gap: 8,
-                marginBottom: 12,
+                marginBottom: 10,
               }}
             >
-              {"ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("").map((ch) => {
-                const active = selectedLetter === ch;
+              {ALPHABETS.map((letter) => {
+                const active = selectedLetter === letter;
                 return (
                   <button
-                    key={ch}
+                    key={letter}
                     type="button"
-                    onClick={() => setSelectedLetter(ch)}
+                    onClick={() => setSelectedLetter(letter)}
                     style={{
                       width: 40,
                       height: 40,
-                      borderRadius: 12,
+                      borderRadius: 999,
                       border: active ? "2px solid #FF8A3C" : "1px solid #E3D3C3",
-                      background: active ? "#FFF9F3" : "#FFFFFF",
-                      fontSize: 18,
-                      fontWeight: 700,
+                      background: active ? "#FFE8D3" : "#FFF9F3",
+                      fontSize: 16,
+                      fontWeight: 600,
                       cursor: "pointer",
+                      color: theme.textMain,
                     }}
                   >
-                    {ch}
+                    {letter}
                   </button>
                 );
               })}
             </div>
 
-            {/* 선택된 알파벳의 단어 카드들 */}
+            {/* 선택된 알파벳 단어 카드들 */}
             <div
               style={{
                 fontSize: 14,
                 fontWeight: 600,
-                marginBottom: 8,
                 color: theme.textMain,
+                margin: "8px 0 6px",
               }}
             >
-              {`"${selectedLetter}" 로 시작하는 단어 카드`}
-              {loadingCards && (
-                <span style={{ marginLeft: 8, fontSize: 12, color: theme.textSub }}>
-                  (불러오는 중…)
-                </span>
-              )}
+              {t.letterSectionTitle(selectedLetter)}
             </div>
-            {loadCardsError && (
-              <div
-                style={{
-                  fontSize: 12,
-                  color: "#C62828",
-                  marginBottom: 6,
-                }}
-              >
-                {loadCardsError}
-              </div>
-            )}
+
             <div
               style={{
                 display: "flex",
                 flexWrap: "wrap",
                 gap: 12,
-                minHeight: 40,
+                minHeight: 80,
               }}
             >
-              {currentCards.length === 0 && (
+              {loadingCards && letterCards.length === 0 && (
                 <span style={{ fontSize: 13, color: "#B0A49A" }}>
-                  이 알파벳으로 등록된 단어 카드가 없습니다.
+                  Loading cards…
                 </span>
               )}
-              {currentCards.map((card, idx) => {
-                const label =
-                  card.word ||
-                  card.label ||
-                  getWordLabelFromId(card.id || card.word);
-                const imageUrl = card.imageUrl || "";
-                return (
-                  <button
-                    key={`${card.id || label}-${idx}`}
-                    type="button"
-                    onClick={() => addWordFromCard(label)}
+
+              {!loadingCards && letterCards.length === 0 && (
+                <span style={{ fontSize: 13, color: "#B0A49A" }}>
+                  아직 준비된 카드가 없습니다.
+                </span>
+              )}
+
+              {letterCards.map((card) => (
+                <button
+                  key={card.id || card.word}
+                  type="button"
+                  onClick={() => handleAddWordFromCard(card.word)}
+                  style={{
+                    width: 140,
+                    borderRadius: 18,
+                    border: "1px solid #E3D3C3",
+                    background: "#FFFFFF",
+                    padding: 10,
+                    textAlign: "center",
+                    cursor: "pointer",
+                    boxShadow: "0 6px 12px rgba(0,0,0,0.04)",
+                  }}
+                >
+                  <div
                     style={{
-                      width: 140,
-                      borderRadius: 20,
-                      padding: 10,
-                      border: "1px solid #E3D3C3",
-                      background: "#FFFFFF",
-                      cursor: "pointer",
+                      width: "100%",
+                      height: 80,
+                      borderRadius: 14,
+                      background: "#FFF7ED",
                       display: "flex",
-                      flexDirection: "column",
                       alignItems: "center",
-                      boxShadow: "0 4px 10px rgba(0,0,0,0.04)",
+                      justifyContent: "center",
+                      overflow: "hidden",
+                      marginBottom: 6,
                     }}
                   >
-                    <div
-                      style={{
-                        width: 80,
-                        height: 60,
-                        borderRadius: 12,
-                        background: "#FDF7F0",
-                        border: "1px solid #E3D3C3",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        marginBottom: 6,
-                        overflow: "hidden",
-                      }}
-                    >
-                      {imageUrl ? (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img
-                          src={imageUrl}
-                          alt={label}
-                          style={{
-                            maxWidth: "100%",
-                            maxHeight: "100%",
-                            objectFit: "contain",
-                          }}
-                        />
-                      ) : (
-                        <span
-                          style={{
-                            fontSize: 26,
-                            fontWeight: 700,
-                            color: "#C8A27A",
-                          }}
-                        >
-                          {selectedLetter}
-                        </span>
-                      )}
-                    </div>
-                    <div
-                      style={{
-                        fontSize: 15,
-                        fontWeight: 700,
-                        color: theme.textMain,
-                      }}
-                    >
-                      {label}
-                    </div>
-                  </button>
-                );
-              })}
+                    {card.imageUrl ? (
+                      <img
+                        src={card.imageUrl}
+                        alt={card.word}
+                        style={{
+                          maxWidth: "100%",
+                          maxHeight: "100%",
+                          objectFit: "contain",
+                          display: "block",
+                        }}
+                      />
+                    ) : (
+                      <span
+                        style={{
+                          fontSize: 14,
+                          color: "#B0A49A",
+                        }}
+                      >
+                        {card.word}
+                      </span>
+                    )}
+                  </div>
+                  <div
+                    style={{
+                      fontSize: 15,
+                      fontWeight: 700,
+                      color: theme.textMain,
+                    }}
+                  >
+                    {card.word}
+                  </div>
+                </button>
+              ))}
             </div>
           </div>
 
@@ -798,41 +740,37 @@ export default function Home() {
                 alignItems: "center",
               }}
             >
-              {wordCount === 0 && (
+              {words.length === 0 && (
                 <span style={{ fontSize: 13, color: "#B0A49A" }}>
                   apple, banana 처럼 입력한 뒤 바깥을 클릭해 보세요.
                 </span>
               )}
-              {wordsInput
-                .split(/[,\\n]/)
-                .map((w) => w.trim())
-                .filter(Boolean)
-                .map((w) => {
-                  const isMust = mustUse.includes(w);
-                  return (
-                    <button
-                      key={w}
-                      type="button"
-                      onClick={() => toggleMustUse(w)}
-                      style={{
-                        padding: "6px 12px",
-                        borderRadius: 999,
-                        border: `1px solid ${
-                          isMust ? theme.chipActiveBorder : theme.chipBorder
-                        }`,
-                        background: isMust ? theme.chipActiveBg : theme.chipBg,
-                        fontSize: 14,
-                        cursor: "pointer",
-                        display: "inline-flex",
-                        alignItems: "center",
-                        gap: 4,
-                      }}
-                    >
-                      {isMust && <span>★</span>}
-                      <span>{w}</span>
-                    </button>
-                  );
-                })}
+              {words.map((w) => {
+                const isMust = mustUse.includes(w);
+                return (
+                  <button
+                    key={w}
+                    type="button"
+                    onClick={() => toggleMustUse(w)}
+                    style={{
+                      padding: "6px 12px",
+                      borderRadius: 999,
+                      border: `1px solid ${
+                        isMust ? theme.chipActiveBorder : theme.chipBorder
+                      }`,
+                      background: isMust ? theme.chipActiveBg : theme.chipBg,
+                      fontSize: 14,
+                      cursor: "pointer",
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: 4,
+                    }}
+                  >
+                    {isMust && <span>★</span>}
+                    <span>{w}</span>
+                  </button>
+                );
+              })}
             </div>
           </div>
         </section>
@@ -989,7 +927,7 @@ export default function Home() {
             <button
               type="button"
               onClick={handleCreateStory}
-              disabled={loadingStory}
+              disabled={loading}
               style={{
                 padding: "10px 22px",
                 borderRadius: 999,
@@ -1000,10 +938,10 @@ export default function Home() {
                 fontWeight: 700,
                 cursor: "pointer",
                 boxShadow: "0 4px 12px rgba(0,0,0,0.18)",
-                opacity: loadingStory ? 0.75 : 1,
+                opacity: loading ? 0.75 : 1,
               }}
             >
-              {loadingStory ? "Creating..." : t.createButton}
+              {loading ? "Creating..." : t.createButton}
             </button>
             {errorMsg && (
               <div
