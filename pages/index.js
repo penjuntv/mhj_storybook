@@ -1,708 +1,817 @@
 // pages/index.js
-import { useState, useMemo } from "react";
+import { useEffect, useState } from "react";
+import { supabase } from "../lib/supabaseClient";
 
-// Supabase Storage에 올려 둔 이미지 경로 헬퍼
-// 예: bucket: word-images / default_en/A/A_Airplane.png
-const SUPABASE_PUBLIC_URL =
-  "https://wnwpyhdrjtjgcfvlwxin.supabase.co/storage/v1/object/public/word-images";
+// Supabase 스토리지 설정
+const BUCKET_NAME = "word-images";
+const BASE_FOLDER = "default_en"; // word-images/default_en/<Letter>/ 파일 구조
 
-function getWordImageUrl(letter, word) {
-  // Airplane -> A_Airplane.png 형식
-  const cleanWord = word.replace(/\s+/g, "");
-  return `${SUPABASE_PUBLIC_URL}/default_en/${letter}/${letter}_${cleanWord}.png`;
-}
-
-// 알파벳 순서
-const ALPHABETS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("");
-
-// 알파벳별 단어 목록 (이미지 & 텍스트용)
-// 필요하면 여기서 단어를 추가/수정하면 됨. (나중에 Supabase DB로 옮기기 쉬운 구조)
-const WORD_DATA = {
-  A: ["Airplane", "Alligator", "Angry", "Ant", "Apple", "Astronaut"],
-  B: ["Baby", "Ball", "Banana", "Bear", "Bed", "Bus"],
-  C: ["Cake", "Car", "Cat", "Chair", "Chicken", "Cloud"],
-  D: ["Dad", "Dinosaur", "Dog", "Doll", "Door", "Duck"],
-  E: ["Eagle", "Ear", "Egg", "Elephant", "Engine", "Eye"],
-  F: ["Family", "Farm", "Finger", "Fire", "Fish", "Flower"],
-  G: ["Game", "Ghost", "Gift", "Giraffe", "Grape", "Guitar"],
-  H: ["Hair", "Hand", "Hat", "Hero", "House", "Hug"],
-  I: ["Icecream", "Igloo", "Ink", "Insect", "Island", "Invite"],
-  J: ["Jacket", "Jam", "Jar", "Jeep", "Jellyfish", "Juice"],
-  K: ["Kangaroo", "Key", "Kick", "King", "Kite", "Kitten"],
-  L: ["Ladybug", "Leaf", "Lemon", "Lion", "Lunch", "Lamp"],
-  M: ["Milk", "Monkey", "Moon", "Mountain", "Mouse", "Music"],
-  N: ["Nail", "Nest", "Net", "Nose", "Nurse", "Nut"],
-  O: ["Ocean", "Octopus", "Office", "Oil", "Onion", "Orange"],
-  P: ["Panda", "Pants", "Party", "Pen", "Pig", "Pizza"],
-  Q: ["Queen", "Question", "Quiet", "Quilt", "Quiz", "Quick"],
-  R: ["Rabbit", "Rain", "Rainbow", "Ring", "Robot", "Rose"],
-  S: ["Salt", "Sand", "School", "Sea", "Socks", "Sun"],
-  T: ["Table", "Tail", "Tea", "Teacher", "Tiger", "Train"],
-  U: ["Umbrella", "Uncle", "Under", "Uniform", "Unicorn", "Up"],
-  V: ["Vacuum", "Van", "Vegetable", "Vest", "Violin", "Village"],
-  W: ["Wall", "Watch", "Water", "Whale", "Window", "Wolf"],
-  X: ["Xray", "Xylophone", "Box", "Fox", "Mix", "Six"],
-  Y: ["Yacht", "Yak", "Yellow", "Yogurt", "Young", "YoYo"],
-  Z: ["Puzzle", "Zebra", "Zero", "Zigzag", "Zipper", "Zoo"],
-};
-
+// UI용 상수
+const LETTERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("");
 const MAX_WORDS = 8;
 
+// 아이용 추천 옵션 (정적)
+const PLACE_SUGGESTIONS = [
+  "at the park",
+  "at home",
+  "at school",
+  "at the playground",
+  "at the beach",
+  "at grandma's house",
+];
+
+const ACTION_SUGGESTIONS = [
+  "played together",
+  "had a picnic",
+  "read a book",
+  "built something",
+  "went on an adventure",
+  "helped someone",
+];
+
+const ENDING_SUGGESTIONS = [
+  "happy",
+  "proud",
+  "surprised",
+  "sleepy",
+  "excited",
+  "calm",
+];
+
+// 다국어 텍스트 (간단 버전)
+const UI_TEXT = {
+  en: {
+    header: "AI Storybook – Make an English story with today's words",
+    step1Title: "STEP 1 · Today's words",
+    step1Subtitle:
+      "Write or choose today's English words from class, homework, or books.",
+    pickFromCards: "Choose words from alphabet cards:",
+    writeWordsLabel: "Write today's English words",
+    writeWordsPlaceholder:
+      "Type words like apple, banana, mom ... separated by commas or line breaks.",
+    chipsLabel:
+      "Word chips · Click a chip to toggle ★ (must include). Use ✕ to remove. ",
+    selectedZero: "No words selected yet. Choose from cards or type words above.",
+    countSuffix: "/8",
+    step2Title: "STEP 2 · Ask AI to make a story",
+    step2Subtitle:
+      "AI will make a very easy English story using 2–8 words your child chose.",
+    placeLabel: "Story place (optional)",
+    actionLabel: "What happened? (optional)",
+    endingLabel: "How should it end? (optional)",
+    askButton: "Ask AI to make the story",
+    loading: "AI is making the story...",
+    errorPrefix: "Error: ",
+    resultTitle: "AI made this story",
+    suggestionsCaption:
+      "You can also tap one of the buttons below to help your child choose.",
+  },
+  ko: {
+    header: "AI Storybook – 오늘 배운 단어로 영어 동화 만들기",
+    step1Title: "STEP 1 · Today's words",
+    step1Subtitle:
+      "오늘 수업·숙제·책에서 등장한 영어 단어를 적거나, 아래 카드에서 골라 보세요.",
+    pickFromCards: "알파벳 카드에서 단어 고르기:",
+    writeWordsLabel: "오늘 배운 영어 단어 적기",
+    writeWordsPlaceholder:
+      "apple, banana, mom 처럼 쉼표(,)나 줄바꿈으로 단어를 입력해 주세요.",
+    chipsLabel:
+      "Word chips (단어 칩) · 단어 칩을 클릭하면 ★ 표시가 생기며, 동화 속에 꼭 들어갔으면 하는 단어로 표시됩니다. ✕로 삭제할 수 있습니다. ",
+    selectedZero:
+      "아직 선택된 단어가 없습니다. 카드나 입력창으로 단어를 추가해 보세요.",
+    countSuffix: "/8",
+    step2Title: "STEP 2 · AI에게 영어 동화 만들기 요청하기",
+    step2Subtitle:
+      "아이가 고른 단어(2~8개)를 바탕으로 AI가 아주 쉬운 영어 동화를 만들어 줍니다.",
+    placeLabel: "이야기 장소 (선택)",
+    actionLabel: "무엇을 했나요? (선택)",
+    endingLabel: "어떻게 끝났으면 좋겠나요? (선택)",
+    askButton: "AI에게 영어 동화 만들기 요청하기",
+    loading: "AI 동화를 만드는 중입니다...",
+    errorPrefix: "오류: ",
+    resultTitle: "AI가 만든 영어 동화",
+    suggestionsCaption:
+      "아이가 고르기 쉽도록 아래 버튼을 눌러 장소·행동·마무리를 선택할 수도 있어요.",
+  },
+  zh: {
+    header: "AI 故事書 – 用今天學到的單字做英文故事",
+    step1Title: "STEP 1 · Today's words",
+    step1Subtitle:
+      "請寫下或從卡片中選擇今天在課堂、作業或書裡出現的英文單字。",
+    pickFromCards: "從字母卡片選單字：",
+    writeWordsLabel: "寫下今天學到的英文單字",
+    writeWordsPlaceholder:
+      "輸入 apple, banana, mom 等單字，用逗號(,)或換行分開。",
+    chipsLabel:
+      "Word chips · 點一下單字就會加上 ★（一定要出現在故事裡），按 ✕ 可以刪除。",
+    selectedZero: "還沒有選擇任何單字。請從卡片或輸入框中加入單字。",
+    countSuffix: "/8",
+    step2Title: "STEP 2 · 請 AI 做一個故事",
+    step2Subtitle:
+      "AI 會用孩子選的 2~8 個單字，做一個非常簡單的英文故事。",
+    placeLabel: "故事地點（選填）",
+    actionLabel: "發生了什麼事？（選填）",
+    endingLabel: "故事怎麼結束？（選填）",
+    askButton: "請 AI 做故事",
+    loading: "AI 正在做故事…",
+    errorPrefix: "錯誤: ",
+    resultTitle: "AI 做出的故事",
+    suggestionsCaption: "也可以點下面的按鈕，讓孩子自己選地點、行動和結局。",
+  },
+};
+
 export default function HomePage() {
-  // 선택된 알파벳
+  const [language, setLanguage] = useState("ko"); // "en" | "ko" | "zh"
   const [selectedLetter, setSelectedLetter] = useState("A");
+  const [cards, setCards] = useState([]); // [{ id, word, imageUrl }]
+  const [isLoadingCards, setIsLoadingCards] = useState(false);
+  const [cardsError, setCardsError] = useState("");
 
-  // 오늘의 핵심 단어들 (칩)
-  const [selectedWords, setSelectedWords] = useState([]);
-
-  // 입력창에 보여줄 문자열 (쉼표로 구분된 단어들)
+  const [selectedWords, setSelectedWords] = useState([]); // [{ word, mustInclude }]
   const [wordInput, setWordInput] = useState("");
 
-  // STEP 2 입력값
   const [place, setPlace] = useState("");
   const [action, setAction] = useState("");
   const [ending, setEnding] = useState("");
 
-  // 스토리 결과 및 에러
   const [story, setStory] = useState("");
-  const [errorMsg, setErrorMsg] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
+  const [storyError, setStoryError] = useState("");
+  const [isStoryLoading, setIsStoryLoading] = useState(false);
 
-  // 현재 알파벳의 단어들
-  const currentWords = useMemo(
-    () => WORD_DATA[selectedLetter] || [],
-    [selectedLetter]
-  );
+  const t = UI_TEXT[language] || UI_TEXT.ko;
 
-  // 공통: 단어 추가 로직 (중복/8개 제한 처리)
-  const addWord = (word) => {
-    const clean = word.trim();
-    if (!clean) return;
+  // 1) Supabase에서 특정 알파벳 폴더의 이미지 목록 가져오기
+  useEffect(() => {
+    let isCancelled = false;
 
-    setSelectedWords((prev) => {
-      if (prev.includes(clean)) return prev;
-      if (prev.length >= MAX_WORDS) return prev;
-      return [...prev, clean];
-    });
-  };
+    async function loadCards() {
+      setIsLoadingCards(true);
+      setCardsError("");
+      try {
+        const folderPath = `${BASE_FOLDER}/${selectedLetter}`;
 
-  // 공통: 여러 개 단어 한꺼번에 추가 (쉼표로 분리된 경우 등)
-  const addWordsFromString = (text) => {
-    const parts = text
-      .split(/[,，\n]/)
-      .map((w) => w.trim())
-      .filter((w) => w.length > 0);
+        const { data, error } = await supabase.storage
+          .from(BUCKET_NAME)
+          .list(folderPath, {
+            limit: 50,
+            offset: 0,
+            sortBy: { column: "name", order: "asc" },
+          });
 
-    if (parts.length === 0) return;
-
-    setSelectedWords((prev) => {
-      let next = [...prev];
-      for (const p of parts) {
-        if (next.length >= MAX_WORDS) break;
-        if (!next.includes(p)) {
-          next.push(p);
+        if (error) throw error;
+        if (!data) {
+          if (!isCancelled) setCards([]);
+          return;
         }
+
+        const imageFiles = data.filter((file) =>
+          file.name.toLowerCase().match(/\.(png|jpg|jpeg|webp)$/)
+        );
+
+        const newCards = imageFiles.map((file) => {
+          const fullPath = `${folderPath}/${file.name}`;
+          const { data: publicUrlData } = supabase.storage
+            .from(BUCKET_NAME)
+            .getPublicUrl(fullPath);
+
+          // 파일명에서 단어 추출: A_Airplane.png -> Airplane
+          let word = file.name;
+          if (word.includes("_")) {
+            const parts = word.split("_");
+            parts.shift(); // 앞의 알파벳 제거
+            word = parts.join("_");
+          }
+          word = word.replace(/\.[^/.]+$/, ""); // 확장자 제거
+
+          return {
+            id: fullPath,
+            word,
+            imageUrl: publicUrlData?.publicUrl || "",
+          };
+        });
+
+        if (!isCancelled) {
+          setCards(newCards);
+        }
+      } catch (err) {
+        console.error("Failed to load cards", err);
+        if (!isCancelled) {
+          setCardsError("카드를 불러오는 중 문제가 발생했습니다.");
+          setCards([]);
+        }
+      } finally {
+        if (!isCancelled) setIsLoadingCards(false);
       }
-      return next;
+    }
+
+    loadCards();
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [selectedLetter]);
+
+  // 2) 단어 칩 관리 유틸
+  const addWordToChips = (rawWord) => {
+    const word = (rawWord || "").trim();
+    if (!word) return;
+
+    setSelectedWords((prev) => {
+      // 이미 있는 단어면 그대로
+      if (prev.some((w) => w.word.toLowerCase() === word.toLowerCase())) {
+        return prev;
+      }
+      if (prev.length >= MAX_WORDS) return prev;
+
+      return [...prev, { word, mustInclude: false }];
     });
   };
 
-  // 1) 카드 클릭 → 단어 추가
-  const handleCardClick = (word) => {
-    addWord(word);
+  const removeWordFromChips = (wordToRemove) => {
+    setSelectedWords((prev) =>
+      prev.filter((w) => w.word.toLowerCase() !== wordToRemove.toLowerCase())
+    );
   };
 
-  // 2) 입력창 변화
-  const handleWordInputChange = (e) => {
-    setWordInput(e.target.value);
+  const toggleMustInclude = (wordToToggle) => {
+    setSelectedWords((prev) =>
+      prev.map((w) =>
+        w.word.toLowerCase() === wordToToggle.toLowerCase()
+          ? { ...w, mustInclude: !w.mustInclude }
+          : w
+      )
+    );
   };
 
-  // 3) 입력창에서 엔터/쉼표 입력 시 단어 반영
+  // 카드 클릭 시 단어 추가
+  const handleCardClick = (cardWord) => {
+    addWordToChips(cardWord);
+  };
+
+  // 수동 입력: 쉼표/엔터/blur 시 단어 칩으로 반영
+  const processWordInput = () => {
+    const tokens = wordInput
+      .split(/[,;\n]/)
+      .map((w) => w.trim())
+      .filter(Boolean);
+
+    tokens.forEach(addWordToChips);
+  };
+
   const handleWordInputKeyDown = (e) => {
-    if (e.key === "Enter" || e.key === "," || e.key === "Process") {
+    if (e.key === "Enter") {
       e.preventDefault();
-      if (!wordInput.trim()) return;
-      addWordsFromString(wordInput);
-      setWordInput("");
+      processWordInput();
     }
   };
 
-  // 4) 입력창 포커스 아웃 시 남은 텍스트도 단어로 처리
   const handleWordInputBlur = () => {
-    if (!wordInput.trim()) return;
-    addWordsFromString(wordInput);
-    setWordInput("");
+    processWordInput();
   };
 
-  // 5) 칩 삭제
-  const handleChipRemove = (word) => {
-    setSelectedWords((prev) => prev.filter((w) => w !== word));
+  // 3) 장소/행동/엔딩 추천 버튼
+  const handlePlaceSuggestionClick = (value) => {
+    setPlace(value);
+  };
+  const handleActionSuggestionClick = (value) => {
+    setAction(value);
+  };
+  const handleEndingSuggestionClick = (value) => {
+    setEnding(value);
   };
 
-  // 6) Story API 호출
-  const handleStoryRequest = async () => {
-    setErrorMsg("");
+  // 4) 스토리 생성 요청
+  const handleRequestStory = async () => {
     setStory("");
+    setStoryError("");
 
-    const coreWords = selectedWords;
-    if (coreWords.length < 2) {
-      setErrorMsg("단어는 최소 2개 이상 골라 주세요.");
+    const wordsForStory = selectedWords.map((w) => w.word);
+    if (wordsForStory.length < 2) {
+      setStoryError("단어는 최소 2개 이상 선택해 주세요.");
       return;
     }
 
-    setIsLoading(true);
+    setIsStoryLoading(true);
     try {
       const res = await fetch("/api/storybook", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          words: coreWords,
-          place: place || "",
-          action: action || "",
-          ending: ending || "",
+          words: wordsForStory,
+          mustIncludeWords: selectedWords
+            .filter((w) => w.mustInclude)
+            .map((w) => w.word),
+          place,
+          action,
+          ending,
+          language, // "en" | "ko" | "zh" – API 쪽에서 사용
         }),
       });
 
       if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        throw new Error(data.error || "AI 동화 생성에 실패했습니다.");
+        const text = await res.text();
+        throw new Error(text || "Failed to call /api/storybook");
       }
 
       const data = await res.json();
+      if (data.error) {
+        throw new Error(data.error);
+      }
+
       setStory(data.story || "");
     } catch (err) {
-      console.error(err);
-      setErrorMsg(err.message || "AI 동화 생성 중 오류가 발생했습니다.");
+      console.error("Error generating story", err);
+      setStoryError(err.message || "스토리를 생성하는 중 오류가 발생했습니다.");
     } finally {
-      setIsLoading(false);
+      setIsStoryLoading(false);
     }
   };
 
+  // 간단한 스타일 (CSS 없는 환경에서도 최소한 보기 좋게)
+  const styles = {
+    page: {
+      minHeight: "100vh",
+      background: "#FFF6EC",
+      padding: "24px 12px 48px",
+      display: "flex",
+      justifyContent: "center",
+      fontFamily:
+        "-apple-system, BlinkMacSystemFont, system-ui, 'Noto Sans KR', sans-serif",
+      color: "#4a2f1a",
+    },
+    container: {
+      maxWidth: "1080px",
+      width: "100%",
+      background: "#FFEFD9",
+      borderRadius: "24px",
+      padding: "32px 32px 40px",
+      boxShadow: "0 18px 40px rgba(0,0,0,0.08)",
+    },
+    headerRow: {
+      display: "flex",
+      justifyContent: "space-between",
+      alignItems: "center",
+      marginBottom: "24px",
+    },
+    langButtons: {
+      display: "flex",
+      gap: "8px",
+    },
+    langButton: (active) => ({
+      padding: "4px 10px",
+      borderRadius: "999px",
+      border: active ? "0" : "1px solid #d9a36b",
+      background: active ? "#FF8C41" : "transparent",
+      color: active ? "#fff" : "#7a4c25",
+      fontSize: "12px",
+      cursor: "pointer",
+      fontWeight: 600,
+    }),
+    stepBox: {
+      background: "#FFE3C1",
+      borderRadius: "20px",
+      padding: "24px 24px 28px",
+      marginBottom: "24px",
+    },
+    stepTitle: {
+      fontSize: "16px",
+      fontWeight: 700,
+      marginBottom: "8px",
+    },
+    stepSubtitle: {
+      fontSize: "13px",
+      marginBottom: "16px",
+      lineHeight: 1.4,
+    },
+    alphabetRow: {
+      display: "flex",
+      flexWrap: "wrap",
+      gap: "8px",
+      marginBottom: "12px",
+    },
+    alphabetButton: (active) => ({
+      width: "32px",
+      height: "32px",
+      borderRadius: "999px",
+      border: "0",
+      background: active ? "#FF8C41" : "#FFF8F0",
+      color: active ? "#fff" : "#7a4c25",
+      boxShadow: active ? "0 0 0 2px rgba(0,0,0,0.08)" : "none",
+      cursor: "pointer",
+      fontWeight: 600,
+    }),
+    cardsGrid: {
+      display: "grid",
+      gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+      gap: "16px",
+      marginBottom: "20px",
+    },
+    card: {
+      background: "#FFF9F3",
+      borderRadius: "20px",
+      padding: "12px 12px 16px",
+      boxShadow: "0 10px 20px rgba(0,0,0,0.06)",
+      cursor: "pointer",
+      display: "flex",
+      flexDirection: "column",
+      alignItems: "center",
+      justifyContent: "space-between",
+      minHeight: "200px",
+    },
+    cardImageWrapper: {
+      width: "100%",
+      borderRadius: "16px",
+      background: "#FFEFD9",
+      overflow: "hidden",
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      marginBottom: "8px",
+    },
+    cardImage: {
+      width: "100%",
+      height: "auto",
+      objectFit: "cover",
+      display: "block",
+    },
+    cardLabel: {
+      fontWeight: 700,
+      fontSize: "14px",
+      marginTop: "4px",
+      textAlign: "center",
+    },
+    textarea: {
+      width: "100%",
+      minHeight: "90px",
+      borderRadius: "16px",
+      border: "2px solid #f5c08c",
+      padding: "10px 12px",
+      fontSize: "14px",
+      resize: "vertical",
+      outline: "none",
+      boxSizing: "border-box",
+      background: "#FFF9F3",
+      marginBottom: "12px",
+    },
+    chipsRow: {
+      display: "flex",
+      flexWrap: "wrap",
+      gap: "8px",
+      marginTop: "8px",
+    },
+    chip: (mustInclude) => ({
+      display: "inline-flex",
+      alignItems: "center",
+      padding: "6px 10px",
+      borderRadius: "999px",
+      background: "#FFF9F3",
+      border: mustInclude ? "1px solid #FF8C41" : "1px solid #F2C199",
+      fontSize: "13px",
+      cursor: "pointer",
+      boxShadow: "0 6px 12px rgba(0,0,0,0.08)",
+    }),
+    chipStar: (mustInclude) => ({
+      color: mustInclude ? "#FF8C41" : "#d0a17a",
+      marginRight: "4px",
+      fontSize: "13px",
+    }),
+    chipRemove: {
+      marginLeft: "6px",
+      fontSize: "13px",
+      cursor: "pointer",
+      opacity: 0.7,
+    },
+    suggestionsRow: {
+      display: "flex",
+      flexWrap: "wrap",
+      gap: "8px",
+      margin: "6px 0 10px",
+    },
+    suggestionButton: {
+      padding: "5px 10px",
+      borderRadius: "999px",
+      border: "0",
+      background: "#FFF9F3",
+      fontSize: "12px",
+      cursor: "pointer",
+      boxShadow: "0 4px 8px rgba(0,0,0,0.06)",
+    },
+    primaryButton: {
+      marginTop: "8px",
+      padding: "11px 20px",
+      borderRadius: "999px",
+      border: "0",
+      background: "#FF8C41",
+      color: "#fff",
+      fontSize: "15px",
+      fontWeight: 700,
+      cursor: "pointer",
+      boxShadow: "0 14px 26px rgba(0,0,0,0.14)",
+    },
+    storyBox: {
+      marginTop: "18px",
+      padding: "16px 18px",
+      borderRadius: "16px",
+      background: "#FFF9F3",
+      whiteSpace: "pre-wrap",
+      lineHeight: 1.5,
+      fontSize: "14px",
+    },
+    errorText: {
+      color: "#D23B3B",
+      fontSize: "13px",
+      marginTop: "6px",
+    },
+    smallCaption: {
+      marginTop: "4px",
+      fontSize: "12px",
+      opacity: 0.8,
+    },
+  };
+
+  const selectedCount = selectedWords.length;
+
   return (
-    <div
-      style={{
-        minHeight: "100vh",
-        background: "linear-gradient(to bottom, #fff7ec, #fffaf3)",
-        fontFamily:
-          '-apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif',
-        color: "#3c2a1d",
-      }}
-    >
-      <div
-        style={{
-          maxWidth: "1000px",
-          margin: "0 auto",
-          padding: "40px 20px 60px",
-        }}
-      >
-        {/* 헤더 */}
-        <header
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-            marginBottom: "24px",
-          }}
-        >
-          <div>
-            <div
-              style={{
-                fontSize: "15px",
-                fontWeight: 700,
-                letterSpacing: "0.08em",
-                color: "#f28c3a",
-                textTransform: "uppercase",
-              }}
-            >
-              MHJ STORYBOOK
-            </div>
-            <h1
-              style={{
-                marginTop: "8px",
-                fontSize: "28px",
-                fontWeight: 800,
-                lineHeight: 1.3,
-              }}
-            >
-              AI Storybook – 오늘 배운 단어로 영어 동화 만들기
-            </h1>
-            <p
-              style={{
-                marginTop: "6px",
-                fontSize: "14px",
-                color: "#7a5b3a",
-              }}
-            >
-              아이와 함께 오늘 배운 영어 단어를 넣고, 3~7세 아이를 위한 아주 쉬운
-              영어 동화를 만들어 보세요.
-            </p>
-          </div>
-          <div
-            style={{
-              display: "flex",
-              gap: "8px",
-              fontSize: "13px",
-              fontWeight: 600,
-            }}
-          >
-            <span
-              style={{
-                padding: "6px 10px",
-                borderRadius: "999px",
-                border: "1px solid #e0c9a7",
-                cursor: "default",
-              }}
+    <div style={styles.page}>
+      <main style={styles.container}>
+        {/* 헤더 + 언어 토글 */}
+        <div style={styles.headerRow}>
+          <h1 style={{ fontSize: 22, fontWeight: 800, margin: 0 }}>
+            {t.header}
+          </h1>
+          <div style={styles.langButtons}>
+            <button
+              type="button"
+              style={styles.langButton(language === "en")}
+              onClick={() => setLanguage("en")}
             >
               EN
-            </span>
-            <span
-              style={{
-                padding: "6px 10px",
-                borderRadius: "999px",
-                border: "1px solid #f28c3a",
-                backgroundColor: "#f28c3a",
-                color: "white",
-                cursor: "default",
-              }}
+            </button>
+            <button
+              type="button"
+              style={styles.langButton(language === "ko")}
+              onClick={() => setLanguage("ko")}
             >
               KO
-            </span>
+            </button>
+            <button
+              type="button"
+              style={styles.langButton(language === "zh")}
+              onClick={() => setLanguage("zh")}
+            >
+              中文
+            </button>
           </div>
-        </header>
+        </div>
 
-        {/* STEP 1 카드 영역 */}
-        <section
-          style={{
-            backgroundColor: "#fee9cfa6",
-            borderRadius: "28px",
-            padding: "28px 26px 30px",
-            boxShadow: "0 18px 30px rgba(0,0,0,0.04)",
-            border: "1px solid #f5d8b2",
-          }}
-        >
-          <div
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              padding: "6px 14px",
-              borderRadius: "999px",
-              backgroundColor: "#fce0b8",
-              fontSize: "12px",
-              fontWeight: 700,
-              color: "#a76523",
-              marginBottom: "16px",
-            }}
-          >
-            STEP 1 · Today&apos;s words
-          </div>
+        {/* STEP 1 */}
+        <section style={styles.stepBox}>
+          <div style={styles.stepTitle}>{t.step1Title}</div>
+          <div style={styles.stepSubtitle}>{t.step1Subtitle}</div>
 
-          <h2
-            style={{
-              fontSize: "20px",
-              fontWeight: 800,
-              marginBottom: "6px",
-            }}
-          >
-            오늘 배운 영어 단어 적기
-          </h2>
-          <p
-            style={{
-              fontSize: "14px",
-              marginBottom: "16px",
-              color: "#7a5b3a",
-            }}
-          >
-            오늘 수업·숙제·책에서 등장한 영어 단어를 적어 주세요. 쉼표(,)나
-            줄바꿈으로 구분하면 단어 칩이 자동으로 만들어집니다.
-          </p>
-
+          <div style={{ fontSize: 13, marginBottom: 6 }}>{t.pickFromCards}</div>
           {/* 알파벳 버튼 */}
-          <div
-            style={{
-              marginBottom: "12px",
-              fontSize: "14px",
-              fontWeight: 600,
-            }}
-          >
-            알파벳 카드에서 단어 고르기:
-          </div>
-          <div
-            style={{
-              display: "flex",
-              flexWrap: "wrap",
-              gap: "6px",
-              marginBottom: "12px",
-            }}
-          >
-            {ALPHABETS.map((letter) => (
+          <div style={styles.alphabetRow}>
+            {LETTERS.map((letter) => (
               <button
                 key={letter}
+                type="button"
+                style={styles.alphabetButton(letter === selectedLetter)}
                 onClick={() => setSelectedLetter(letter)}
-                style={{
-                  width: 34,
-                  height: 34,
-                  borderRadius: "999px",
-                  border:
-                    selectedLetter === letter
-                      ? "2px solid #f28c3a"
-                      : "1px solid #e0c9a7",
-                  backgroundColor:
-                    selectedLetter === letter ? "#ffe1c4" : "#fff7ec",
-                  color: "#4a321f",
-                  fontWeight: 700,
-                  fontSize: "15px",
-                  cursor: "pointer",
-                }}
               >
                 {letter}
               </button>
             ))}
           </div>
 
-          <div
-            style={{
-              marginBottom: "10px",
-              fontSize: "14px",
-              fontWeight: 600,
-            }}
-          >
-            &quot;{selectedLetter}&quot; 로 시작하는 단어 카드
-          </div>
+          {/* 단어 카드 그리드 */}
+          {isLoadingCards ? (
+            <div style={{ fontSize: 13, margin: "8px 0 12px" }}>
+              카드 이미지를 불러오는 중입니다…
+            </div>
+          ) : cardsError ? (
+            <div style={styles.errorText}>{cardsError}</div>
+          ) : cards.length === 0 ? (
+            <div style={{ fontSize: 13, margin: "8px 0 12px" }}>
+              아직 이 알파벳에는 카드가 없습니다.
+            </div>
+          ) : (
+            <div style={styles.cardsGrid}>
+              {cards.map((card) => (
+                <button
+                  type="button"
+                  key={card.id}
+                  style={styles.card}
+                  onClick={() => handleCardClick(card.word)}
+                >
+                  <div style={styles.cardImageWrapper}>
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={card.imageUrl}
+                      alt={card.word}
+                      style={styles.cardImage}
+                    />
+                  </div>
+                  <div style={styles.cardLabel}>{card.word}</div>
+                </button>
+              ))}
+            </div>
+          )}
 
-          {/* 단어 카드 그리드 (3 x 2) */}
+          {/* 오늘 배운 단어 입력 */}
           <div
             style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
-              gap: "16px",
-              marginBottom: "22px",
+              marginTop: 8,
+              marginBottom: 4,
+              fontWeight: 600,
+              fontSize: 14,
             }}
           >
-            {currentWords.map((word) => (
-              <button
-                key={word}
-                onClick={() => handleCardClick(word)}
-                style={{
-                  borderRadius: "26px",
-                  padding: "14px 12px 12px",
-                  backgroundColor: "#fffdf8",
-                  border: "1px solid #f2d9b8",
-                  boxShadow:
-                    "0 14px 24px rgba(0,0,0,0.04), inset 0 0 0 1px rgba(255,255,255,0.6)",
-                  cursor: selectedWords.includes(word)
-                    ? "default"
-                    : "pointer",
-                  transform: selectedWords.includes(word)
-                    ? "translateY(0)"
-                    : "translateY(0)",
-                  transition: "box-shadow 0.15s ease, transform 0.15s ease",
-                }}
-              >
+            {t.writeWordsLabel}
+          </div>
+          <textarea
+            style={styles.textarea}
+            placeholder={t.writeWordsPlaceholder}
+            value={wordInput}
+            onChange={(e) => setWordInput(e.target.value)}
+            onKeyDown={handleWordInputKeyDown}
+            onBlur={handleWordInputBlur}
+          />
+
+          {/* Word chips */}
+          <div style={{ fontSize: 13 }}>
+            {t.chipsLabel}
+            {selectedCount}
+            {t.countSuffix}
+          </div>
+          {selectedCount === 0 ? (
+            <div style={{ fontSize: 13, marginTop: 6 }}>{t.selectedZero}</div>
+          ) : (
+            <div style={styles.chipsRow}>
+              {selectedWords.map((item) => (
                 <div
-                  style={{
-                    borderRadius: "22px",
-                    backgroundColor: "#fff4dc",
-                    padding: "12px",
-                    marginBottom: "10px",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    height: 150,
-                  }}
+                  key={item.word}
+                  style={styles.chip(item.mustInclude)}
+                  onClick={() => toggleMustInclude(item.word)}
                 >
-                  <img
-                    src={getWordImageUrl(selectedLetter, word)}
-                    alt={word}
-                    style={{
-                      maxWidth: "100%",
-                      maxHeight: "100%",
-                      objectFit: "contain",
-                      borderRadius: "18px",
+                  <span style={styles.chipStar(item.mustInclude)}>★</span>
+                  <span>{item.word}</span>
+                  <span
+                    style={styles.chipRemove}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      removeWordFromChips(item.word);
                     }}
-                  />
+                  >
+                    ✕
+                  </span>
                 </div>
-                <div
-                  style={{
-                    textAlign: "center",
-                    fontWeight: 700,
-                    fontSize: "16px",
-                    color: "#3c2a1d",
-                  }}
-                >
-                  {word}
-                </div>
+              ))}
+            </div>
+          )}
+        </section>
+
+        {/* STEP 2 */}
+        <section style={styles.stepBox}>
+          <div style={styles.stepTitle}>{t.step2Title}</div>
+          <div style={styles.stepSubtitle}>{t.step2Subtitle}</div>
+
+          {/* 장소 */}
+          <label style={{ display: "block", fontSize: 14, fontWeight: 600 }}>
+            {t.placeLabel}
+          </label>
+          <input
+            type="text"
+            style={{
+              ...styles.textarea,
+              minHeight: 0,
+              height: 40,
+              paddingTop: 6,
+              paddingBottom: 6,
+            }}
+            value={place}
+            onChange={(e) => setPlace(e.target.value)}
+          />
+          <div style={styles.suggestionsRow}>
+            {PLACE_SUGGESTIONS.map((p) => (
+              <button
+                key={p}
+                type="button"
+                style={styles.suggestionButton}
+                onClick={() => handlePlaceSuggestionClick(p)}
+              >
+                {p}
               </button>
             ))}
           </div>
 
-          {/* 오늘 배운 단어 입력창 */}
-          <div
+          {/* 행동 */}
+          <label
             style={{
-              marginTop: "4px",
-              fontSize: "14px",
+              display: "block",
+              fontSize: 14,
               fontWeight: 600,
-              marginBottom: "6px",
+              marginTop: 10,
             }}
           >
-            오늘 배운 영어 단어 적기
-          </div>
-          <textarea
-            placeholder="apple, banana 처럼 쉼표(,)나 줄바꿈으로 단어를 입력해 주세요."
-            value={wordInput}
-            onChange={handleWordInputChange}
-            onKeyDown={handleWordInputKeyDown}
-            onBlur={handleWordInputBlur}
-            rows={3}
+            {t.actionLabel}
+          </label>
+          <input
+            type="text"
             style={{
-              width: "100%",
-              borderRadius: "18px",
-              border: "1px solid #f0cda7",
-              padding: "10px 12px",
-              fontSize: "15px",
-              resize: "vertical",
-              outline: "none",
-              boxSizing: "border-box",
+              ...styles.textarea,
+              minHeight: 0,
+              height: 40,
+              paddingTop: 6,
+              paddingBottom: 6,
             }}
+            value={action}
+            onChange={(e) => setAction(e.target.value)}
           />
-
-          {/* Word chips */}
-          <div
-            style={{
-              marginTop: "10px",
-              fontSize: "13px",
-              color: "#7a5b3a",
-              marginBottom: "6px",
-            }}
-          >
-            Word chips (단어 칩) · 단어 칩을 클릭하면 ★ 표시가 생기며, 동화 속에 꼭
-            들어갔으면 하는 단어로 표시됩니다. {selectedWords.length}/
-            {MAX_WORDS}
+          <div style={styles.suggestionsRow}>
+            {ACTION_SUGGESTIONS.map((a) => (
+              <button
+                key={a}
+                type="button"
+                style={styles.suggestionButton}
+                onClick={() => handleActionSuggestionClick(a)}
+              >
+                {a}
+              </button>
+            ))}
           </div>
 
-          <div
+          {/* 엔딩 */}
+          <label
             style={{
-              display: "flex",
-              flexWrap: "wrap",
-              gap: "8px",
-              minHeight: 40,
-              padding: selectedWords.length ? "6px 0 0" : "0",
+              display: "block",
+              fontSize: 14,
+              fontWeight: 600,
+              marginTop: 10,
             }}
           >
-            {selectedWords.length === 0 ? (
-              <div style={{ fontSize: "13px", color: "#b28a5a" }}>
-                아직 선택된 단어가 없습니다. 카드나 입력창으로 단어를 추가해
-                보세요.
-              </div>
-            ) : (
-              selectedWords.map((word) => (
-                <button
-                  key={word}
-                  type="button"
-                  onClick={() => handleChipRemove(word)}
-                  style={{
-                    display: "inline-flex",
-                    alignItems: "center",
-                    gap: "6px",
-                    padding: "6px 12px 6px 10px",
-                    borderRadius: "999px",
-                    border: "none",
-                    backgroundColor: "#fff7ec",
-                    boxShadow: "0 6px 12px rgba(0,0,0,0.06)",
-                    fontSize: "14px",
-                    cursor: "pointer",
-                  }}
-                >
-                  <span style={{ color: "#f28c3a" }}>★</span>
-                  <span>{word}</span>
-                  <span
-                    style={{
-                      fontSize: "13px",
-                      color: "#b28a5a",
-                      marginLeft: 4,
-                    }}
-                  >
-                    ×
-                  </span>
-                </button>
-              ))
-            )}
-          </div>
-        </section>
-
-        {/* STEP 2: AI에게 동화 만들기 요청하기 */}
-        <section
-          style={{
-            marginTop: "26px",
-            backgroundColor: "#fffdf9",
-            borderRadius: "26px",
-            padding: "24px 24px 28px",
-            border: "1px solid #f1dec5",
-            boxShadow: "0 16px 26px rgba(0,0,0,0.04)",
-          }}
-        >
-          <h2
+            {t.endingLabel}
+          </label>
+          <input
+            type="text"
             style={{
-              fontSize: "20px",
-              fontWeight: 800,
-              marginBottom: "10px",
+              ...styles.textarea,
+              minHeight: 0,
+              height: 40,
+              paddingTop: 6,
+              paddingBottom: 6,
             }}
-          >
-            STEP 2 · AI에게 영어 동화 만들기 요청하기
-          </h2>
-          <p
-            style={{
-              fontSize: "14px",
-              color: "#7a5b3a",
-              marginBottom: "18px",
-            }}
-          >
-            아이가 고른 단어(2~8개)를 바탕으로 AI가 아주 쉬운 영어 동화를
-            만들어 줍니다. 아래 옵션은 비워 둬도 괜찮고, 아이와 함께 간단히
-            적어 봐도 좋습니다.
-          </p>
-
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
-              gap: "14px",
-              marginBottom: "18px",
-            }}
-          >
-            <div>
-              <div
-                style={{
-                  fontSize: "14px",
-                  fontWeight: 600,
-                  marginBottom: "4px",
-                }}
+            value={ending}
+            onChange={(e) => setEnding(e.target.value)}
+          />
+          <div style={styles.suggestionsRow}>
+            {ENDING_SUGGESTIONS.map((eText) => (
+              <button
+                key={eText}
+                type="button"
+                style={styles.suggestionButton}
+                onClick={() => handleEndingSuggestionClick(eText)}
               >
-                이야기 장소 (선택)
-              </div>
-              <input
-                type="text"
-                placeholder="at the park, at home, at school..."
-                value={place}
-                onChange={(e) => setPlace(e.target.value)}
-                style={{
-                  width: "100%",
-                  borderRadius: "999px",
-                  border: "1px solid #f0cda7",
-                  padding: "8px 12px",
-                  fontSize: "14px",
-                  outline: "none",
-                  boxSizing: "border-box",
-                }}
-              />
-            </div>
-            <div>
-              <div
-                style={{
-                  fontSize: "14px",
-                  fontWeight: 600,
-                  marginBottom: "4px",
-                }}
-              >
-                무엇을 했나요? (선택)
-              </div>
-              <input
-                type="text"
-                placeholder="picnic, birthday party, reading a book..."
-                value={action}
-                onChange={(e) => setAction(e.target.value)}
-                style={{
-                  width: "100%",
-                  borderRadius: "999px",
-                  border: "1px solid #f0cda7",
-                  padding: "8px 12px",
-                  fontSize: "14px",
-                  outline: "none",
-                  boxSizing: "border-box",
-                }}
-              />
-            </div>
-            <div>
-              <div
-                style={{
-                  fontSize: "14px",
-                  fontWeight: 600,
-                  marginBottom: "4px",
-                }}
-              >
-                어떻게 끝났으면 좋겠나요? (선택)
-              </div>
-              <input
-                type="text"
-                placeholder="happy, funny, surprising..."
-                value={ending}
-                onChange={(e) => setEnding(e.target.value)}
-                style={{
-                  width: "100%",
-                  borderRadius: "999px",
-                  border: "1px solid #f0cda7",
-                  padding: "8px 12px",
-                  fontSize: "14px",
-                  outline: "none",
-                  boxSizing: "border-box",
-                }}
-              />
-            </div>
+                {eText}
+              </button>
+            ))}
           </div>
 
+          <div style={styles.smallCaption}>{t.suggestionsCaption}</div>
+
+          {/* 스토리 요청 버튼 */}
           <button
             type="button"
-            onClick={handleStoryRequest}
-            disabled={isLoading}
-            style={{
-              marginTop: "4px",
-              padding: "12px 26px",
-              borderRadius: "999px",
-              border: "none",
-              backgroundColor: isLoading ? "#e0a26a" : "#f28c3a",
-              color: "white",
-              fontSize: "16px",
-              fontWeight: 700,
-              cursor: isLoading ? "default" : "pointer",
-              boxShadow: "0 10px 18px rgba(0,0,0,0.15)",
-            }}
+            style={styles.primaryButton}
+            onClick={handleRequestStory}
+            disabled={isStoryLoading}
           >
-            {isLoading ? "AI가 동화를 만드는 중..." : "AI에게 영어 동화 만들기 요청하기"}
+            {isStoryLoading ? t.loading : t.askButton}
           </button>
 
-          {/* 에러/스토리 출력 */}
-          {errorMsg && (
-            <div
-              style={{
-                marginTop: "14px",
-                padding: "10px 12px",
-                borderRadius: "12px",
-                backgroundColor: "#fff1f1",
-                color: "#b04141",
-                fontSize: "14px",
-              }}
-            >
-              {errorMsg}
+          {storyError && (
+            <div style={styles.errorText}>
+              {t.errorPrefix}
+              {storyError}
             </div>
           )}
 
           {story && (
-            <div
-              style={{
-                marginTop: "16px",
-                padding: "16px 16px 14px",
-                borderRadius: "16px",
-                backgroundColor: "#fffdf8",
-                border: "1px solid #f0dec8",
-                fontSize: "15px",
-                lineHeight: 1.6,
-                whiteSpace: "pre-wrap",
-              }}
-            >
+            <div style={styles.storyBox}>
+              <div
+                style={{
+                  fontWeight: 700,
+                  marginBottom: 6,
+                  fontSize: 15,
+                }}
+              >
+                {t.resultTitle}
+              </div>
               {story}
             </div>
           )}
         </section>
-      </div>
+      </main>
     </div>
   );
 }
