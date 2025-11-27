@@ -1,21 +1,16 @@
 // pages/api/storybook.js
 import OpenAI from "openai";
 
+// 서버에서만 쓰는 OpenAI 클라이언트
 const client = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
 
-// 간단한 CORS 처리 (프레이머/브라우저에서 직접 호출 가능하게)
 export default async function handler(req, res) {
+  // CORS (프레이머 / 브라우저에서 직접 호출해도 안전하게)
   res.setHeader("Access-Control-Allow-Origin", "*");
-  res.setHeader(
-    "Access-Control-Allow-Methods",
-    "POST, OPTIONS"
-  );
-  res.setHeader(
-    "Access-Control-Allow-Headers",
-    "Content-Type"
-  );
+  res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type");
 
   if (req.method === "OPTIONS") {
     res.status(200).end();
@@ -29,178 +24,59 @@ export default async function handler(req, res) {
 
   try {
     const body = typeof req.body === "string" ? JSON.parse(req.body) : req.body;
-    const { mode, words, place, event } = body || {};
+    const { words, idea } = body || {};
 
-    if (!mode) {
-      res.status(400).json({ error: "mode is required" });
+    if (!Array.isArray(words) || words.length === 0) {
+      res.status(400).json({ error: "words 배열이 비어 있습니다." });
       return;
     }
 
-    const safeWords =
-      Array.isArray(words) && words.length > 0
-        ? words.slice(0, 8).map((w) => String(w))
-        : [];
+    const safeWords = words.slice(0, 8).join(", ");
 
-    if (mode === "suggestPlaces") {
-      if (safeWords.length < 2) {
-        res.status(400).json({ error: "At least 2 words are required." });
-        return;
-      }
+    const character = idea?.character || "a child";
+    const place = idea?.place || "a special place";
+    const event = idea?.event || "has a small adventure";
+    const ending = idea?.ending || "everything ends in a warm, happy way";
 
-      const places = await suggestPlaces(safeWords);
-      res.status(200).json({ places });
-      return;
-    }
+    const userPrompt = `
+Today's English words: ${safeWords}
 
-    if (mode === "suggestEvents") {
-      if (safeWords.length < 2 || !place) {
-        res.status(400).json({ error: "Words and place are required." });
-        return;
-      }
+Make a very simple children's story for 3–7 year old ESL learners.
 
-      const events = await suggestEvents(safeWords, place);
-      res.status(200).json({ events });
-      return;
-    }
+Story idea:
+- Main character: ${character}
+- Place: ${place}
+- What happens: ${event}
+- How it ends: ${ending}
 
-    if (mode === "createStory") {
-      if (safeWords.length === 0 || !place || !event) {
-        res
-          .status(400)
-          .json({ error: "Words, place and event are required." });
-        return;
-      }
+Requirements:
+- Use as many of the words as natural.
+- Very simple English (A1~A2 level).
+- 1–3 short sentences per line.
+- Short overall length, like a one-page picture book.
+`;
 
-      const story = await createStory(safeWords, place, event);
-      res.status(200).json({ story });
-      return;
-    }
+    const completion = await client.chat.completions.create({
+      model: "gpt-4o-mini",
+      messages: [
+        {
+          role: "system",
+          content:
+            "You are an expert children's storyteller. Write warm, safe stories in very simple English for 3–7 year old ESL learners. Use short, clear sentences. Avoid difficult grammar.",
+        },
+        { role: "user", content: userPrompt },
+      ],
+      temperature: 0.7,
+      max_tokens: 500,
+    });
 
-    res.status(400).json({ error: "Unknown mode" });
+    const story =
+      completion.choices?.[0]?.message?.content?.trim() ||
+      "Sorry, I could not create a story.";
+
+    res.status(200).json({ story });
   } catch (err) {
     console.error("Story API error:", err);
     res.status(500).json({ error: "Server error" });
   }
-}
-
-// ---------- OpenAI 헬퍼들 ----------
-
-function wordsToSentence(words) {
-  return words.join(", ");
-}
-
-function parseListFromText(text, maxItems = 6) {
-  if (!text) return [];
-  const lines = text
-    .split("\n")
-    .map((line) => line.trim())
-    .filter((line) => line.length > 0);
-
-  const cleaned = lines
-    .map((line) => line.replace(/^\d+[\).\-\:]\s*/, ""))
-    .filter((line) => line.length > 0);
-
-  return cleaned.slice(0, maxItems);
-}
-
-async function suggestPlaces(words) {
-  const userPrompt = `
-Child's chosen English words: ${wordsToSentence(words)}
-
-You are helping a 3–7 year old ESL child.
-Suggest 6 fun, imaginative but simple places in very simple English,
-where a story using these words could happen.
-
-Rules:
-- 1 short place phrase per line (for buttons), like "at the playground", "in a small castle".
-- NO explanations, NO numbering like "1." – just the phrases, each on its own line.
-- Very simple words only (A1 level).
-  `;
-
-  const completion = await client.chat.completions.create({
-    model: "gpt-4o-mini",
-    messages: [
-      {
-        role: "system",
-        content:
-          "You are an assistant for a children's English story app. Output must be plain text with one short phrase per line.",
-      },
-      { role: "user", content: userPrompt },
-    ],
-    temperature: 0.7,
-    max_tokens: 200,
-  });
-
-  const content =
-    completion.choices?.[0]?.message?.content?.trim() || "";
-  return parseListFromText(content, 6);
-}
-
-async function suggestEvents(words, place) {
-  const userPrompt = `
-Child's chosen English words: ${wordsToSentence(words)}
-Chosen place: ${place}
-
-Suggest 6 fun and simple ideas for "what happens" at this place.
-
-Rules:
-- 1 short sentence or phrase per line, like "They build a sandcastle" or "They find a tiny dragon".
-- MUST be grammatically simple (A1 level).
-- Use simple verbs (play, find, make, read, help, etc.).
-- NO explanations, NO numbering like "1." – just the ideas, each on its own line.
-  `;
-
-  const completion = await client.chat.completions.create({
-    model: "gpt-4o-mini",
-    messages: [
-      {
-        role: "system",
-        content:
-          "You are an assistant for a children's English story app. Output must be plain text with one idea per line.",
-      },
-      { role: "user", content: userPrompt },
-    ],
-    temperature: 0.8,
-    max_tokens: 220,
-  });
-
-  const content =
-    completion.choices?.[0]?.message?.content?.trim() || "";
-  return parseListFromText(content, 6);
-}
-
-async function createStory(words, place, event) {
-  const userPrompt = `
-Child's chosen English words: ${wordsToSentence(words)}
-Chosen place: ${place}
-Chosen action (what happens): ${event}
-
-Write a short children's story in very simple English (A1 level) for a 3–7 year old ESL learner.
-
-Requirements:
-- Use as many of the child's words as natural.
-- 3–6 short sentences, each on its own line.
-- Very simple grammar and vocabulary.
-- Warm, kind, encouraging tone.
-- Do NOT include translation or explanations, only the English story.
-  `;
-
-  const completion = await client.chat.completions.create({
-    model: "gpt-4o-mini",
-    messages: [
-      {
-        role: "system",
-        content:
-          "You are an expert children's storyteller. You write warm, safe stories in very simple English for young ESL learners.",
-      },
-      { role: "user", content: userPrompt },
-    ],
-    temperature: 0.7,
-    max_tokens: 500,
-  });
-
-  const story =
-    completion.choices?.[0]?.message?.content?.trim() ||
-    "Sorry, I could not create a story.";
-  return story;
 }
