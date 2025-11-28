@@ -1,88 +1,60 @@
 // hooks/useWordCards.js
-// Supabase에서 알파벳별 단어 카드(이미지) 목록을 불러오는 커스텀 훅
+import { useMemo } from "react";
+import { WORD_CARDS } from "../data/wordCards";
 
-import { useEffect, useState } from "react";
-import { supabase } from "../lib/supabaseClient";
+// Supabase base URL (NEXT_PUBLIC_SUPABASE_URL)
+const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
 
-const BUCKET_NAME = "word-images";
-const BASE_FOLDER = "default_en"; // word-images/default_en/<Letter>/...
+// "A_airplane" -> "Airplane"
+function idToWord(id) {
+  if (!id) return "";
+  const raw = id.split("_").slice(1).join(" ");
+  if (!raw) return "";
+  return raw.charAt(0).toUpperCase() + raw.slice(1);
+}
 
-export function useWordCards(selectedLetter) {
-  const [cards, setCards] = useState([]); // { id, word, imageUrl }
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState("");
+// public 이미지 URL 생성
+// word-images/default_en/{letter}/{id}.png
+function buildImageUrl(letter, id) {
+  if (!SUPABASE_URL) return "";
+  return `${SUPABASE_URL}/storage/v1/object/public/word-images/default_en/${letter}/${id}.png`;
+}
 
-  useEffect(() => {
-    let cancelled = false;
+/**
+ * 알파벳 한 글자에 해당하는 카드 목록을 반환하는 훅
+ * - Supabase JS 클라이언트로 list() 호출하지 않고
+ *   data/wordCards.js에 있는 ID를 이용해 URL을 직접 만든다.
+ * - WORD_CARDS 구조는 예전 코드와 동일하다고 가정
+ *   (예: WORD_CARDS["A"] = [{ id: "A_airplane" }, ...])
+ */
+export default function useWordCards(letter) {
+  const cards = useMemo(() => {
+    const safeLetter = letter || "A";
+    const list = (WORD_CARDS && WORD_CARDS[safeLetter]) || [];
 
-    async function load() {
-      setIsLoading(true);
-      setError("");
-      try {
-        const folderPath = `${BASE_FOLDER}/${selectedLetter}`;
+    return list.map((item) => {
+      // item 이 문자열이든 객체든 모두 지원
+      const id = typeof item === "string" ? item : item.id;
+      const word =
+        typeof item === "object" && item.word
+          ? item.word
+          : idToWord(id);
+      const imageUrl =
+        typeof item === "object" && item.imageUrl
+          ? item.imageUrl
+          : buildImageUrl(safeLetter, id);
 
-        const { data, error: listError } = await supabase.storage
-          .from(BUCKET_NAME)
-          .list(folderPath, {
-            limit: 100,
-            offset: 0,
-            sortBy: { column: "name", order: "asc" },
-          });
+      return {
+        id,
+        word,
+        imageUrl,
+      };
+    });
+  }, [letter]);
 
-        if (listError) throw listError;
-
-        if (!data) {
-          if (!cancelled) setCards([]);
-          return;
-        }
-
-        const imageFiles = data.filter((file) =>
-          file.name.toLowerCase().match(/\.(png|jpg|jpeg|webp)$/)
-        );
-
-        const mapped = imageFiles.map((file) => {
-          const fullPath = `${folderPath}/${file.name}`;
-          const { data: publicUrlData } = supabase.storage
-            .from(BUCKET_NAME)
-            .getPublicUrl(fullPath);
-
-          // 파일명: A_airplane.png -> airplane -> Airplane
-          let word = file.name;
-          if (word.includes("_")) {
-            const parts = word.split("_");
-            parts.shift();
-            word = parts.join("_");
-          }
-          word = word.replace(/\.[^/.]+$/, "");
-          if (word.length > 0) {
-            word = word.charAt(0).toUpperCase() + word.slice(1);
-          }
-
-          return {
-            id: fullPath,
-            word,
-            imageUrl: publicUrlData?.publicUrl || "",
-          };
-        });
-
-        if (!cancelled) setCards(mapped);
-      } catch (err) {
-        console.error("useWordCards: failed to load cards", err);
-        if (!cancelled) {
-          setError("카드를 불러오는 중 문제가 발생했습니다.");
-          setCards([]);
-        }
-      } finally {
-        if (!cancelled) setIsLoading(false);
-      }
-    }
-
-    load();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [selectedLetter]);
-
-  return { cards, isLoading, error };
+  return {
+    cards,
+    isLoading: false,
+    error: null,
+  };
 }
