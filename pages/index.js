@@ -1,44 +1,35 @@
 // pages/index.js
-import { useEffect, useState } from "react";
-import { supabase } from "../lib/supabaseClient";
+import { useMemo, useState } from "react";
+import { WORD_CARDS } from "../data/wordCards";
 
-// Supabase 스토리지 설정
-const BUCKET_NAME = "word-images";
-const BASE_FOLDER = "default_en"; // word-images/default_en/<Letter>/ 파일 구조
-
-// UI용 상수
 const LETTERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("");
 const MAX_WORDS = 8;
 
-// 아이용 추천 옵션 (정적)
-const PLACE_SUGGESTIONS = [
-  "at the park",
-  "at home",
-  "at school",
-  "at the playground",
-  "at the beach",
-  "at grandma's house",
-];
+// id: "A_airplane" -> "Airplane"
+function idToWord(id) {
+  if (!id) return "";
+  const raw = id.split("_").slice(1).join(" "); // "airplane", "angry", "Astronaut"
+  if (!raw) return "";
+  return raw.charAt(0).toUpperCase() + raw.slice(1);
+}
 
-const ACTION_SUGGESTIONS = [
-  "played together",
-  "had a picnic",
-  "read a book",
-  "built something",
-  "went on an adventure",
-  "helped someone",
-];
+// Supabase public URL 생성
+// word-images/default_en/{letter}/{id}.png
+function buildImageUrl(letter, id) {
+  const baseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  return `${baseUrl}/storage/v1/object/public/word-images/default_en/${letter}/${id}.png`;
+}
 
-const ENDING_SUGGESTIONS = [
-  "happy",
-  "proud",
-  "surprised",
-  "sleepy",
-  "excited",
-  "calm",
-];
+// 수동 입력 텍스트 -> 단어 배열
+function textToTokens(text) {
+  if (!text) return [];
+  return text
+    .split(/[,;\n]/)
+    .map((w) => w.trim())
+    .filter(Boolean);
+}
 
-// 다국어 텍스트 (간단 버전)
+// 다국어 UI 텍스트
 const UI_TEXT = {
   en: {
     header: "AI Storybook – Make an English story with today's words",
@@ -50,7 +41,7 @@ const UI_TEXT = {
     writeWordsPlaceholder:
       "Type words like apple, banana, mom ... separated by commas or line breaks.",
     chipsLabel:
-      "Word chips · Click a chip to toggle ★ (must include). Use ✕ to remove. ",
+      "Word chips · Click a chip to toggle ★ (must include in story). Use ✕ to remove. ",
     selectedZero: "No words selected yet. Choose from cards or type words above.",
     countSuffix: "/8",
     step2Title: "STEP 2 · Ask AI to make a story",
@@ -64,7 +55,7 @@ const UI_TEXT = {
     errorPrefix: "Error: ",
     resultTitle: "AI made this story",
     suggestionsCaption:
-      "You can also tap one of the buttons below to help your child choose.",
+      "You can also tap the buttons below to help your child choose.",
   },
   ko: {
     header: "AI Storybook – 오늘 배운 단어로 영어 동화 만들기",
@@ -120,142 +111,66 @@ const UI_TEXT = {
   },
 };
 
-export default function HomePage() {
-  const [language, setLanguage] = useState("ko"); // "en" | "ko" | "zh"
-  const [selectedLetter, setSelectedLetter] = useState("A");
-  const [cards, setCards] = useState([]); // [{ id, word, imageUrl }]
-  const [isLoadingCards, setIsLoadingCards] = useState(false);
-  const [cardsError, setCardsError] = useState("");
+// 아이용 기본 추천 (정적) – storyIdeas API와는 별개로 안전하게 유지
+const PLACE_SUGGESTIONS = [
+  "at the park",
+  "at home",
+  "at school",
+  "at the playground",
+  "at the beach",
+  "at grandma's house",
+];
 
+const ACTION_SUGGESTIONS = [
+  "played together",
+  "had a picnic",
+  "read a book",
+  "built something",
+  "went on an adventure",
+  "helped someone",
+];
+
+const ENDING_SUGGESTIONS = [
+  "happy",
+  "proud",
+  "surprised",
+  "sleepy",
+  "excited",
+  "calm",
+];
+
+export default function HomePage() {
+  const [language, setLanguage] = useState("ko");
+  const [selectedLetter, setSelectedLetter] = useState("A");
+
+  // 카드 목록: WORD_CARDS + buildImageUrl 사용 (이전 버전과 동일 구조)
+  const cardsForLetter = useMemo(() => {
+    const list = WORD_CARDS[selectedLetter] || [];
+    return list.map((card) => {
+      const word = idToWord(card.id);
+      const imageUrl = card.imageUrl || buildImageUrl(selectedLetter, card.id);
+      return { ...card, word, imageUrl };
+    });
+  }, [selectedLetter]);
+
+  // 단어 칩 상태
   const [selectedWords, setSelectedWords] = useState([]); // [{ word, mustInclude }]
   const [wordInput, setWordInput] = useState("");
 
+  // 장소/행동/엔딩
   const [place, setPlace] = useState("");
   const [action, setAction] = useState("");
   const [ending, setEnding] = useState("");
 
+  // 스토리
   const [story, setStory] = useState("");
   const [storyError, setStoryError] = useState("");
   const [isStoryLoading, setIsStoryLoading] = useState(false);
 
   const t = UI_TEXT[language] || UI_TEXT.ko;
 
-  // -------- 1) Supabase에서 특정 알파벳 폴더의 이미지 목록 가져오기 --------
-  useEffect(() => {
-    let isCancelled = false;
+  // ───────── 단어 칩 관리 ─────────
 
-    async function loadCards() {
-      setIsLoadingCards(true);
-      setCardsError("");
-      setCards([]);
-
-      // 경로 후보들을 만들어 순차적으로 시도
-      const pathCandidates = [
-        `${BASE_FOLDER}/${selectedLetter}`,
-        `${BASE_FOLDER}/${selectedLetter}/`,
-        selectedLetter, // 혹시 루트 바로 아래에 있을 경우
-      ];
-
-      try {
-        let finalData = null;
-        let finalPath = null;
-        let lastError = null;
-
-        for (const folderPath of pathCandidates) {
-          const { data, error } = await supabase.storage
-            .from(BUCKET_NAME)
-            .list(folderPath, {
-              limit: 50,
-              offset: 0,
-              sortBy: { column: "name", order: "asc" },
-            });
-
-          if (error) {
-            lastError = error;
-            continue;
-          }
-
-          if (data && data.length > 0) {
-            finalData = data;
-            finalPath = folderPath;
-            break;
-          }
-        }
-
-        if (!finalData) {
-          if (lastError) {
-            console.error("Supabase list error:", lastError);
-            if (!isCancelled) {
-              setCardsError(
-                `카드를 불러오는 중 오류가 발생했습니다: ${lastError.message}`
-              );
-            }
-            return;
-          }
-          // 에러는 없지만 파일도 없는 경우
-          if (!isCancelled) {
-            setCards([]);
-          }
-          return;
-        }
-
-        // 디버깅용: 실제 사용된 경로
-        console.log(
-          "[Storybook] Loaded cards from folder:",
-          finalPath,
-          finalData
-        );
-
-        const imageFiles = finalData.filter((file) =>
-          file.name.toLowerCase().match(/\.(png|jpg|jpeg|webp)$/)
-        );
-
-        const newCards = imageFiles.map((file) => {
-          const fullPath = `${finalPath}/${file.name}`;
-          const { data: publicUrlData } = supabase.storage
-            .from(BUCKET_NAME)
-            .getPublicUrl(fullPath);
-
-          // 파일명에서 단어 추출: A_Airplane.png -> Airplane
-          let word = file.name;
-          if (word.includes("_")) {
-            const parts = word.split("_");
-            parts.shift(); // 앞의 알파벳 제거
-            word = parts.join("_");
-          }
-          word = word.replace(/\.[^/.]+$/, ""); // 확장자 제거
-
-          return {
-            id: fullPath,
-            word,
-            imageUrl: publicUrlData?.publicUrl || "",
-          };
-        });
-
-        if (!isCancelled) {
-          setCards(newCards);
-        }
-      } catch (err) {
-        console.error("Failed to load cards", err);
-        if (!isCancelled) {
-          setCardsError(
-            `카드를 불러오는 중 예상치 못한 오류가 발생했습니다: ${err.message}`
-          );
-          setCards([]);
-        }
-      } finally {
-        if (!isCancelled) setIsLoadingCards(false);
-      }
-    }
-
-    loadCards();
-
-    return () => {
-      isCancelled = true;
-    };
-  }, [selectedLetter]);
-
-  // -------- 2) 단어 칩 관리 유틸 --------
   const addWordToChips = (rawWord) => {
     const word = (rawWord || "").trim();
     if (!word) return;
@@ -265,14 +180,15 @@ export default function HomePage() {
         return prev;
       }
       if (prev.length >= MAX_WORDS) return prev;
-
       return [...prev, { word, mustInclude: false }];
     });
   };
 
   const removeWordFromChips = (wordToRemove) => {
     setSelectedWords((prev) =>
-      prev.filter((w) => w.word.toLowerCase() !== wordToRemove.toLowerCase())
+      prev.filter(
+        (w) => w.word.toLowerCase() !== wordToRemove.toLowerCase()
+      )
     );
   };
 
@@ -286,18 +202,14 @@ export default function HomePage() {
     );
   };
 
-  // 카드 클릭 시 단어 추가
+  // 카드 클릭 → 칩에 추가
   const handleCardClick = (cardWord) => {
     addWordToChips(cardWord);
   };
 
-  // 수동 입력: 쉼표/엔터/blur 시 단어 칩으로 반영
+  // 수동 입력 처리 (Enter/쉼표/blur 시)
   const processWordInput = () => {
-    const tokens = wordInput
-      .split(/[,;\n]/)
-      .map((w) => w.trim())
-      .filter(Boolean);
-
+    const tokens = textToTokens(wordInput);
     tokens.forEach(addWordToChips);
   };
 
@@ -312,18 +224,14 @@ export default function HomePage() {
     processWordInput();
   };
 
-  // -------- 3) 장소/행동/엔딩 추천 버튼 --------
-  const handlePlaceSuggestionClick = (value) => {
-    setPlace(value);
-  };
-  const handleActionSuggestionClick = (value) => {
-    setAction(value);
-  };
-  const handleEndingSuggestionClick = (value) => {
-    setEnding(value);
-  };
+  // ───────── 장소/행동/엔딩 추천 버튼 ─────────
 
-  // -------- 4) 스토리 생성 요청 --------
+  const handlePlaceSuggestionClick = (value) => setPlace(value);
+  const handleActionSuggestionClick = (value) => setAction(value);
+  const handleEndingSuggestionClick = (value) => setEnding(value);
+
+  // ───────── 스토리 생성 ─────────
+
   const handleRequestStory = async () => {
     setStory("");
     setStoryError("");
@@ -341,13 +249,12 @@ export default function HomePage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           words: wordsForStory,
-          mustIncludeWords: selectedWords
-            .filter((w) => w.mustInclude)
-            .map((w) => w.word),
-          place,
-          action,
-          ending,
-          language, // "en" | "ko" | "zh"
+          idea: {
+            character: "a child",
+            place,
+            event: action,
+            ending,
+          },
         }),
       });
 
@@ -357,10 +264,7 @@ export default function HomePage() {
       }
 
       const data = await res.json();
-      if (data.error) {
-        throw new Error(data.error);
-      }
-
+      if (data.error) throw new Error(data.error);
       setStory(data.story || "");
     } catch (err) {
       console.error("Error generating story", err);
@@ -370,7 +274,8 @@ export default function HomePage() {
     }
   };
 
-  // -------- 5) 인라인 스타일 --------
+  // ───────── 스타일 ─────────
+
   const styles = {
     page: {
       minHeight: "100vh",
@@ -427,64 +332,55 @@ export default function HomePage() {
       lineHeight: 1.4,
     },
     alphabetRow: {
-      display: "grid",
-      gridTemplateColumns: "repeat(13, 1fr)", // 13 + 13
+      display: "flex",
+      flexWrap: "wrap",
       gap: "10px",
-      marginBottom: "12px",
-      maxWidth: "720px",
+      marginBottom: "16px",
     },
     alphabetButton: (active) => ({
-      width: "40px",
-      height: "40px",
+      width: "38px",
+      height: "38px",
       borderRadius: "999px",
       border: "0",
       background: active ? "#FF8C41" : "#FFF8F0",
       color: active ? "#fff" : "#7a4c25",
       boxShadow: active ? "0 0 0 2px rgba(0,0,0,0.08)" : "none",
       cursor: "pointer",
-      fontWeight: 600,
+      fontWeight: 700,
       fontSize: "16px",
-      justifySelf: "center",
     }),
     cardsGrid: {
       display: "grid",
-      gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
-      gap: "16px",
+      gridTemplateColumns: "repeat(3, minmax(0, 1fr))", // 윗줄3, 아랫줄3
+      gap: "18px",
       marginBottom: "20px",
     },
     card: {
       background: "#FFF9F3",
-      borderRadius: "20px",
-      padding: "12px 12px 16px",
-      boxShadow: "0 10px 20px rgba(0,0,0,0.06)",
+      borderRadius: "24px",
+      padding: "14px 14px 18px",
+      boxShadow: "0 12px 24px rgba(0,0,0,0.06)",
       cursor: "pointer",
       display: "flex",
       flexDirection: "column",
       alignItems: "center",
-      justifyContent: "space-between",
-      minHeight: "200px",
+      justifyContent: "center",
+      minHeight: "220px",
     },
     cardImageWrapper: {
       width: "100%",
-      borderRadius: "16px",
+      borderRadius: "20px",
       background: "#FFEFD9",
       overflow: "hidden",
       display: "flex",
       alignItems: "center",
       justifyContent: "center",
-      marginBottom: "8px",
     },
     cardImage: {
       width: "100%",
-      height: "auto",
+      height: "100%",
       objectFit: "cover",
       display: "block",
-    },
-    cardLabel: {
-      fontWeight: 700,
-      fontSize: "14px",
-      marginTop: "4px",
-      textAlign: "center",
     },
     textarea: {
       width: "100%",
@@ -617,7 +513,7 @@ export default function HomePage() {
 
           <div style={{ fontSize: 13, marginBottom: 6 }}>{t.pickFromCards}</div>
 
-          {/* 알파벳 버튼 (13 + 13) */}
+          {/* 알파벳 버튼 */}
           <div style={styles.alphabetRow}>
             {LETTERS.map((letter) => (
               <button
@@ -631,20 +527,14 @@ export default function HomePage() {
             ))}
           </div>
 
-          {/* 단어 카드 그리드 */}
-          {isLoadingCards ? (
-            <div style={{ fontSize: 13, margin: "8px 0 12px" }}>
-              카드 이미지를 불러오는 중입니다…
-            </div>
-          ) : cardsError ? (
-            <div style={styles.errorText}>{cardsError}</div>
-          ) : cards.length === 0 ? (
+          {/* 단어 카드 3x2 그리드 */}
+          {cardsForLetter.length === 0 ? (
             <div style={{ fontSize: 13, margin: "8px 0 12px" }}>
               아직 이 알파벳에는 카드가 없습니다.
             </div>
           ) : (
             <div style={styles.cardsGrid}>
-              {cards.map((card) => (
+              {cardsForLetter.map((card) => (
                 <button
                   type="button"
                   key={card.id}
@@ -659,7 +549,7 @@ export default function HomePage() {
                       style={styles.cardImage}
                     />
                   </div>
-                  <div style={styles.cardLabel}>{card.word}</div>
+                  {/* 텍스트는 이미지 안에 있으니 여기서는 생략 */}
                 </button>
               ))}
             </div>
