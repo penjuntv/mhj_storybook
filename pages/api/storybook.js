@@ -6,7 +6,7 @@ const client = new OpenAI({
 });
 
 export default async function handler(req, res) {
-  // CORS (프레이머/브라우저에서 직접 호출해도 안전하게)
+  // CORS (Framer / 브라우저 직접 호출 대비)
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type");
@@ -27,11 +27,13 @@ export default async function handler(req, res) {
     const {
       words,
       mustIncludeWords = [],
-      place,
-      action,
-      ending,
-      language,
-      profile,
+      language = "ko",
+      kidName = "",
+      pov = "first", // "first" | "third"
+      length = "normal", // "short" | "normal" | "long"
+      place = "",
+      action = "",
+      ending = "",
     } = body || {};
 
     if (!Array.isArray(words) || words.length === 0) {
@@ -40,50 +42,61 @@ export default async function handler(req, res) {
     }
 
     const safeWords = words.slice(0, 8).join(", ");
-    const mustList =
+    const safeMustInclude =
       Array.isArray(mustIncludeWords) && mustIncludeWords.length > 0
         ? mustIncludeWords.slice(0, 8).join(", ")
-        : "none";
+        : "";
 
-    const kidName = (profile?.kidName || "the child").trim();
-    const kidAge = (profile?.kidAge || "").toString().trim();
-    const pov = profile?.pov === "third" ? "third" : "first";
+    let lengthInstruction = "";
+    let maxTokens = 600;
 
-    const ageLine = kidAge ? `The child is about ${kidAge} years old.` : "";
-    const placeLine = place ? `Place: ${place}` : "Place: a simple friendly place";
-    const actionLine = action
-      ? `What happens: ${action}`
-      : "What happens: the child has a small adventure.";
-    const endingLine = ending
-      ? `How it ends: ${ending}`
-      : "How it ends: everything is warm and happy.";
+    if (length === "short") {
+      lengthInstruction =
+        "Make the story quite short, about 3–4 short lines in total.";
+      maxTokens = 350;
+    } else if (length === "long") {
+      lengthInstruction =
+        "Make the story a bit longer, about 8–12 short lines in total, but still easy.";
+      maxTokens = 800;
+    } else {
+      // normal
+      lengthInstruction =
+        "Make the story medium length, about 5–7 short lines in total.";
+      maxTokens = 600;
+    }
+
+    const childName = (kidName || "").trim() || "the child";
 
     const povInstruction =
-      pov === "first"
-        ? `Write the story in FIRST PERSON, so the main character says "I". Use the child's name "${kidName}" only when natural.`
-        : `Write the story in THIRD PERSON about a child named "${kidName}".`;
+      pov === "third"
+        ? `Write the story in simple third person, as if a grown-up is telling about ${childName}. Use "${childName}" or "the child" instead of "I".`
+        : `Write the story in the child's first person voice using "I". Pretend that ${childName} is telling the story.`;
 
+    const placeLine = place ? `- Place: ${place}\n` : "";
+    const actionLine = action ? `- What happens: ${action}\n` : "";
+    const endingLine = ending ? `- How it ends: ${ending}\n` : "";
+
+    const mustIncludeLine = safeMustInclude
+      ? `Use these starred words and make sure they appear in the story: ${safeMustInclude}.\n`
+      : "";
+
+    // 이야기 언어는 계속 "아주 쉬운 영어" 기준 (UI 언어와는 무관)
     const userPrompt = `
 Today's English words: ${safeWords}
-Words that must appear if natural: ${mustList}
 
-${placeLine}
-${actionLine}
-${endingLine}
-${ageLine}
+Story idea:
+${placeLine}${actionLine}${endingLine}
 
-${povInstruction}
-
-Audience:
-- Young ESL learner, around 3–7 years old.
-- Very simple English (A1–A2).
-- 1–3 short sentences per line.
-- Short overall length, like a one-page picture book.
+${mustIncludeLine}
+Write a very simple, warm children's story for a 3–7 year old ESL learner.
 
 Requirements:
-- Use as many of the words as natural.
-- Keep grammar and vocabulary easy.
-- The story must feel warm, safe, and child-friendly.
+- Use as many of the given words as is natural.
+- Use very simple English (A1–A2 level).
+- 1–3 short sentences per line.
+- ${lengthInstruction}
+- ${povInstruction}
+- Avoid anything scary, violent, or inappropriate.
     `.trim();
 
     const completion = await client.chat.completions.create({
@@ -92,12 +105,12 @@ Requirements:
         {
           role: "system",
           content:
-            "You are an expert children's storyteller. Write warm, safe stories in very simple English for 3–7 year old ESL learners. Use short, clear sentences. Avoid difficult grammar.",
+            "You are an expert children's storyteller. You write warm, safe stories in very simple English for 3–7 year old ESL learners.",
         },
         { role: "user", content: userPrompt },
       ],
       temperature: 0.7,
-      max_tokens: 600,
+      max_tokens: maxTokens,
     });
 
     const story =
