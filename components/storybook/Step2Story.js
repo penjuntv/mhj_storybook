@@ -1,19 +1,10 @@
 // components/storybook/Step2Story.js
-//
-// STEP 2: 아이 프로필 + 장소/행동 추천 + 동화 생성 UI
-// - props.selectedWords : 선택된 단어 배열 (예: ["apple", "banana"])
-// - props.language      : "ko" | "en" | "zh" (기본값 "ko")
+import React, { useState } from "react";
 
-import { useState } from "react";
-import { getUIText } from "../../lib/uiText";
-import StoryResult from "./StoryResult";
-
-export default function Step2Story({ selectedWords = [], language = "ko" }) {
-  const t = getUIText(language);
-
+export default function Step2Story({ language, t, selectedWords }) {
   const [kidName, setKidName] = useState("");
   const [kidAge, setKidAge] = useState("");
-  const [povMode, setPovMode] = useState("first"); // "first" | "third"
+  const [pov, setPov] = useState("first"); // 'first' | 'third'
 
   const [place, setPlace] = useState("");
   const [action, setAction] = useState("");
@@ -22,28 +13,24 @@ export default function Step2Story({ selectedWords = [], language = "ko" }) {
   const [placeSuggestions, setPlaceSuggestions] = useState([]);
   const [actionSuggestions, setActionSuggestions] = useState([]);
 
-  const [isIdeasLoading, setIsIdeasLoading] = useState(false);
+  const [story, setStory] = useState("");
+  const [storyError, setStoryError] = useState("");
   const [isStoryLoading, setIsStoryLoading] = useState(false);
 
   const [ideasError, setIdeasError] = useState("");
-  const [storyError, setStoryError] = useState("");
-  const [story, setStory] = useState("");
+  const [isIdeasLoading, setIsIdeasLoading] = useState(false);
 
-  const hasEnoughWords = selectedWords && selectedWords.length >= 2;
+  const wordsForApi = selectedWords.map((w) => w.word);
+  const mustIncludeWords = selectedWords
+    .filter((w) => w.mustInclude)
+    .map((w) => w.word);
 
-  // AI에게 장소/행동 아이디어 요청
-  const handleAskIdeas = async () => {
+  // AI에게 장소/행동 추천 받기
+  const handleGetIdeas = async () => {
     setIdeasError("");
-    setPlaceSuggestions([]);
-    setActionSuggestions([]);
 
-    if (!hasEnoughWords) {
-      // uiText에 전용 문구가 있으면 사용, 없으면 fallback
-      const msg =
-        t.ideasTooFewWords ||
-        t.storyTooFewWords ||
-        "단어를 두 개 이상 고른 뒤에 눌러 주세요.";
-      setIdeasError(msg);
+    if (wordsForApi.length < 2) {
+      setIdeasError(t.ideasTooFewWords);
       return;
     }
 
@@ -52,158 +39,91 @@ export default function Step2Story({ selectedWords = [], language = "ko" }) {
       const res = await fetch("/api/storyIdeas", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ words: selectedWords }),
+        body: JSON.stringify({ words: wordsForApi }),
       });
 
       if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        throw new Error(data.error || "Failed to fetch story ideas");
+        const text = await res.text();
+        throw new Error(text || "Failed to call /api/storyIdeas");
       }
 
       const data = await res.json();
       setPlaceSuggestions(data.places || []);
       setActionSuggestions(data.actions || []);
     } catch (err) {
-      console.error("Error in handleAskIdeas:", err);
-      setIdeasError(
-        err.message || "AI 장소·행동 아이디어를 가져오는 중 오류가 발생했습니다."
-      );
+      console.error("Error in handleGetIdeas", err);
+      setIdeasError(`${t.ideasErrorPrefix}${err.message || String(err)}`);
     } finally {
       setIsIdeasLoading(false);
     }
   };
 
   // 동화 생성
-  const handleCreateStory = async () => {
-    setStoryError("");
+  const handleRequestStory = async () => {
     setStory("");
+    setStoryError("");
 
-    if (!hasEnoughWords) {
-      const msg =
-        t.storyTooFewWords ||
-        "단어를 두 개 이상 선택한 뒤, AI에게 동화를 만들어 달라고 요청해 주세요.";
-      setStoryError(msg);
+    if (wordsForApi.length < 2) {
+      setStoryError("단어는 최소 2개 이상 선택해 주세요.");
       return;
     }
 
     try {
       setIsStoryLoading(true);
 
-      const povText =
-        povMode === "first" ? t.povFirstPerson || "" : t.povThirdPerson || "";
-
-      const body = {
-        words: selectedWords,
-        idea: {
-          character: kidName || "a child",
-          age: kidAge || "",
-          pov: povMode,
-          povText,
-          place: place || "",
-          event: action || "",
-          ending: ending || "",
-        },
-      };
-
       const res = await fetch("/api/storybook", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
+        body: JSON.stringify({
+          words: wordsForApi,
+          mustIncludeWords,
+          place,
+          action,
+          ending,
+          language,
+          profile: {
+            kidName: kidName || "",
+            kidAge: kidAge || "",
+            pov, // 'first' or 'third'
+          },
+        }),
       });
 
       if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        throw new Error(data.error || "Failed to create story");
+        const text = await res.text();
+        throw new Error(text || "Failed to call /api/storybook");
       }
 
       const data = await res.json();
+      if (data.error) throw new Error(data.error);
       setStory(data.story || "");
     } catch (err) {
-      console.error("Error in handleCreateStory:", err);
-      setStoryError(
-        err.message || "동화를 만드는 중 오류가 발생했습니다. 다시 시도해 주세요."
-      );
+      console.error("Error generating story", err);
+      setStoryError(err.message || "스토리를 생성하는 중 오류가 발생했습니다.");
     } finally {
       setIsStoryLoading(false);
     }
   };
 
-  // 스타일 (index.js와 톤 맞춤)
-  const boxStyle = {
-    background: "#FFF9F3",
-    borderRadius: 20,
-    padding: 20,
-    marginTop: 16,
+  const sectionBox = {
+    background: "#FDF1DE",
+    borderRadius: 24,
+    padding: 24,
+    marginTop: 24,
   };
 
-  const labelStyle = {
-    fontSize: 14,
-    fontWeight: 600,
-    marginBottom: 6,
-    color: "#6B4A2A",
-  };
-
-  const inputStyle = {
+  const inputBase = {
     width: "100%",
     borderRadius: 999,
     border: "1px solid rgba(0,0,0,0.08)",
     padding: "8px 12px",
     fontSize: 13,
-    background: "#FFFFFF",
+    background: "#FFFDF8",
     boxSizing: "border-box",
   };
 
-  const chipBtn = {
-    borderRadius: 999,
-    padding: "6px 12px",
-    border: "none",
-    background: "#FFEBD7",
-    fontSize: 13,
-    cursor: "pointer",
-    marginRight: 8,
-    marginBottom: 8,
-    color: "#5E3B20",
-  };
-
-  const primaryButton = {
-    display: "inline-flex",
-    alignItems: "center",
-    justifyContent: "center",
-    padding: "10px 20px",
-    borderRadius: 999,
-    border: "none",
-    background: "#FF9F4A",
-    color: "#FFFFFF",
-    fontSize: 15,
-    fontWeight: 700,
-    cursor: "pointer",
-    boxShadow: "0 12px 30px rgba(255,159,74,0.35)",
-  };
-
-  const secondaryButton = {
-    ...primaryButton,
-    background: "#FFE0B5",
-    color: "#7A4B16",
-    boxShadow: "0 8px 20px rgba(0,0,0,0.06)",
-  };
-
-  const errorTextStyle = {
-    marginTop: 8,
-    fontSize: 13,
-    color: "#C0392B",
-  };
-
   return (
-    <section
-      style={{
-        background: "#FFF3E1",
-        borderRadius: 24,
-        padding: 24,
-        marginTop: 24,
-        boxShadow: "0 18px 45px rgba(0,0,0,0.04)",
-      }}
-    >
-      {/* STEP 2 타이틀 */}
+    <section style={sectionBox}>
       <div
         style={{
           display: "inline-block",
@@ -215,97 +135,145 @@ export default function Step2Story({ selectedWords = [], language = "ko" }) {
           letterSpacing: "0.12em",
           textTransform: "uppercase",
           color: "#255981",
-          marginBottom: 12,
+          marginBottom: 16,
         }}
       >
-        {t.step2Title}
+        STEP 2 · AI가 만든 영어 동화
       </div>
 
-      <h2
+      <h2 style={{ fontSize: 20, fontWeight: 700, marginBottom: 8 }}>
+        {t.step2Title}
+      </h2>
+      <p
         style={{
-          fontSize: 20,
-          fontWeight: 700,
-          marginBottom: 8,
+          fontSize: 14,
+          lineHeight: 1.6,
+          color: "#6A4D33",
+          marginBottom: 16,
         }}
       >
         {t.step2Subtitle}
-      </h2>
+      </p>
 
-      {/* 아이 프로필 박스 */}
-      <div style={boxStyle}>
+      {/* 아이 프로필 */}
+      <div
+        style={{
+          background: "#F6F4FF",
+          borderRadius: 18,
+          padding: 16,
+          marginBottom: 18,
+        }}
+      >
         <div
           style={{
-            fontSize: 14,
+            fontSize: 13,
             fontWeight: 600,
-            marginBottom: 10,
-            color: "#6B4A2A",
+            marginBottom: 8,
+            color: "#4C3A6B",
           }}
         >
           {t.profileSectionTitle}
         </div>
-
         <div
           style={{
             display: "grid",
             gridTemplateColumns: "2fr 1fr",
-            gap: 12,
-            marginBottom: 12,
+            gap: 8,
+            marginBottom: 10,
           }}
         >
           <div>
-            <div style={labelStyle}>{t.kidNameLabel}</div>
+            <label
+              style={{
+                display: "block",
+                fontSize: 12,
+                marginBottom: 4,
+                color: "#5D4A76",
+              }}
+            >
+              {t.kidNameLabel}
+            </label>
             <input
               type="text"
               value={kidName}
               onChange={(e) => setKidName(e.target.value)}
-              placeholder="Yujin"
-              style={inputStyle}
+              style={inputBase}
             />
           </div>
           <div>
-            <div style={labelStyle}>{t.kidAgeLabel}</div>
+            <label
+              style={{
+                display: "block",
+                fontSize: 12,
+                marginBottom: 4,
+                color: "#5D4A76",
+              }}
+            >
+              {t.kidAgeLabel}
+            </label>
             <input
-              type="text"
+              type="number"
+              min="1"
+              max="12"
               value={kidAge}
               onChange={(e) => setKidAge(e.target.value)}
-              placeholder="4"
-              style={inputStyle}
+              style={inputBase}
             />
           </div>
         </div>
 
-        {/* 시점 토글 */}
         <div>
-          <div style={labelStyle}>{t.povLabel}</div>
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          <div
+            style={{
+              fontSize: 12,
+              marginBottom: 4,
+              color: "#5D4A76",
+              fontWeight: 600,
+            }}
+          >
+            {t.povLabel}
+          </div>
+          <div
+            style={{
+              display: "flex",
+              gap: 8,
+              flexWrap: "wrap",
+            }}
+          >
             <button
               type="button"
-              onClick={() => setPovMode("first")}
+              onClick={() => setPov("first")}
               style={{
-                ...secondaryButton,
-                padding: "6px 14px",
-                background: povMode === "first" ? "#FF9F4A" : "#FFE0B5",
-                color: povMode === "first" ? "#fff" : "#7A4B16",
+                padding: "6px 12px",
+                borderRadius: 999,
+                border: "none",
+                fontSize: 12,
+                cursor: "pointer",
+                background: pov === "first" ? "#FF9F4A" : "#FFFDF8",
+                color: pov === "first" ? "#fff" : "#5D4A76",
                 boxShadow:
-                  povMode === "first"
-                    ? "0 10px 22px rgba(255,159,74,0.4)"
-                    : "0 8px 18px rgba(0,0,0,0.05)",
+                  pov === "first"
+                    ? "0 0 0 2px rgba(255,159,74,0.45)"
+                    : "0 4px 10px rgba(0,0,0,0.05)",
               }}
             >
               {t.povFirstPerson}
             </button>
             <button
               type="button"
-              onClick={() => setPovMode("third")}
+              onClick={() => setPov("third")}
               style={{
-                ...secondaryButton,
-                padding: "6px 14px",
-                background: povMode === "third" ? "#FF9F4A" : "#FFE0B5",
-                color: povMode === "third" ? "#fff" : "#7A4B16",
+                padding: "6px 12px",
+                borderRadius: 999,
+                border: "none",
+                fontSize: 12,
+                cursor: "pointer",
+                background: pov === "third" ? "#FF9F4A" : "#FFFDF8",
+                color: pov === "third" ? "#fff" : "#5D4A76",
                 boxShadow:
-                  povMode === "third"
-                    ? "0 10px 22px rgba(255,159,74,0.4)"
-                    : "0 8px 18px rgba(0,0,0,0.05)",
+                  pov === "third"
+                    ? "0 0 0 2px rgba(255,159,74,0.45)"
+                    : "0 4px 10px rgba(0,0,0,0.05)",
               }}
             >
               {t.povThirdPerson}
@@ -314,134 +282,264 @@ export default function Step2Story({ selectedWords = [], language = "ko" }) {
         </div>
       </div>
 
-      {/* 장소·행동 추천 + 입력 영역 */}
-      <div style={{ marginTop: 20 }}>
+      {/* 아이디어 버튼 */}
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          gap: 12,
+          marginBottom: 12,
+          flexWrap: "wrap",
+        }}
+      >
         <div
           style={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-            gap: 12,
-            marginBottom: 8,
+            fontSize: 14,
+            fontWeight: 600,
+            color: "#7A5A3A",
+          }}
+        >
+          {t.ideasButton}
+        </div>
+        <button
+          type="button"
+          onClick={handleGetIdeas}
+          disabled={isIdeasLoading}
+          style={{
+            padding: "8px 16px",
+            borderRadius: 999,
+            border: "none",
+            background: "#FF9F4A",
+            color: "#fff",
+            fontWeight: 600,
+            cursor: isIdeasLoading ? "default" : "pointer",
+            boxShadow: "0 10px 24px rgba(255,159,74,0.35)",
+            fontSize: 13,
+          }}
+        >
+          {isIdeasLoading ? t.ideasLoading : t.ideasButton}
+        </button>
+      </div>
+      <p
+        style={{
+          fontSize: 12,
+          color: "#8B6A49",
+          marginBottom: 12,
+        }}
+      >
+        {t.ideasCaption}
+      </p>
+      {ideasError && (
+        <div
+          style={{
+            fontSize: 12,
+            color: "#C0392B",
+            marginBottom: 10,
+          }}
+        >
+          {ideasError}
+        </div>
+      )}
+
+      {/* 장소 / 행동 / 엔딩 입력 + 추천 칩 */}
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+          gap: 12,
+          marginBottom: 8,
+        }}
+      >
+        {/* place */}
+        <div>
+          <div
+            style={{
+              fontSize: 13,
+              fontWeight: 600,
+              marginBottom: 4,
+              color: "#7A5A3A",
+            }}
+          >
+            {t.placeLabel}
+          </div>
+          <input
+            type="text"
+            value={place}
+            onChange={(e) => setPlace(e.target.value)}
+            style={inputBase}
+          />
+          <div
+            style={{
+              display: "flex",
+              flexWrap: "wrap",
+              gap: 6,
+              marginTop: 6,
+            }}
+          >
+            {placeSuggestions.map((p) => (
+              <button
+                key={p}
+                type="button"
+                onClick={() => setPlace(p)}
+                style={{
+                  padding: "4px 10px",
+                  borderRadius: 999,
+                  border: "0",
+                  background: "#FFF9F3",
+                  fontSize: 12,
+                  cursor: "pointer",
+                  boxShadow: "0 4px 8px rgba(0,0,0,0.06)",
+                }}
+              >
+                {p}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* action */}
+        <div>
+          <div
+            style={{
+              fontSize: 13,
+              fontWeight: 600,
+              marginBottom: 4,
+              color: "#7A5A3A",
+            }}
+          >
+            {t.actionLabel}
+          </div>
+          <input
+            type="text"
+            value={action}
+            onChange={(e) => setAction(e.target.value)}
+            style={inputBase}
+          />
+          <div
+            style={{
+              display: "flex",
+              flexWrap: "wrap",
+              gap: 6,
+              marginTop: 6,
+            }}
+          >
+            {actionSuggestions.map((a) => (
+              <button
+                key={a}
+                type="button"
+                onClick={() => setAction(a)}
+                style={{
+                  padding: "4px 10px",
+                  borderRadius: 999,
+                  border: "0",
+                  background: "#FFF9F3",
+                  fontSize: 12,
+                  cursor: "pointer",
+                  boxShadow: "0 4px 8px rgba(0,0,0,0.06)",
+                }}
+              >
+                {a}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* ending */}
+        <div>
+          <div
+            style={{
+              fontSize: 13,
+              fontWeight: 600,
+              marginBottom: 4,
+              color: "#7A5A3A",
+            }}
+          >
+            {t.endingLabel}
+          </div>
+          <input
+            type="text"
+            value={ending}
+            placeholder={t.endingPlaceholder}
+            onChange={(e) => setEnding(e.target.value)}
+            style={inputBase}
+          />
+        </div>
+      </div>
+
+      <div
+        style={{
+          marginTop: 4,
+          fontSize: 12,
+          color: "#8B6A49",
+          marginBottom: 12,
+        }}
+      >
+        {t.suggestionsCaption}
+      </div>
+
+      {/* 동화 생성 버튼 */}
+      <button
+        type="button"
+        onClick={handleRequestStory}
+        disabled={isStoryLoading}
+        style={{
+          display: "inline-flex",
+          alignItems: "center",
+          justifyContent: "center",
+          padding: "10px 20px",
+          borderRadius: 999,
+          border: "none",
+          background: isStoryLoading ? "#FFBF80" : "#FF9F4A",
+          color: "#FFFFFF",
+          fontSize: 15,
+          fontWeight: 700,
+          cursor: isStoryLoading ? "default" : "pointer",
+          boxShadow: "0 12px 30px rgba(255,159,74,0.35)",
+          marginBottom: 12,
+        }}
+      >
+        {isStoryLoading ? t.loading : t.askButton}
+      </button>
+
+      {storyError && (
+        <div
+          style={{
+            marginTop: 8,
+            fontSize: 13,
+            color: "#C0392B",
+            padding: "8px 12px",
+            borderRadius: 12,
+            background: "#FDECEA",
+          }}
+        >
+          {t.errorPrefix}
+          {storyError}
+        </div>
+      )}
+
+      {story && (
+        <div
+          style={{
+            marginTop: 18,
+            padding: 16,
+            borderRadius: 18,
+            background: "#FFF9F0",
+            fontSize: 14,
+            lineHeight: 1.7,
+            whiteSpace: "pre-wrap",
           }}
         >
           <div
             style={{
+              fontWeight: 700,
+              marginBottom: 6,
               fontSize: 15,
-              fontWeight: 600,
-              color: "#6B4A2A",
             }}
           >
-            {t.ideasButton}
+            {t.resultTitle}
           </div>
-          <button
-            type="button"
-            onClick={handleAskIdeas}
-            style={secondaryButton}
-            disabled={isIdeasLoading}
-          >
-            {isIdeasLoading ? t.loading : t.ideasButton}
-          </button>
-        </div>
-        <div
-          style={{
-            fontSize: 12,
-            color: "#8B6A49",
-            marginBottom: 10,
-          }}
-        >
-          {t.ideasCaption}
-        </div>
-
-        {/* 장소 / 행동 / 엔딩 입력 */}
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
-            gap: 12,
-          }}
-        >
-          <div>
-            <div style={labelStyle}>{t.placeLabel}</div>
-            <input
-              type="text"
-              value={place}
-              onChange={(e) => setPlace(e.target.value)}
-              style={inputStyle}
-            />
-            {/* 장소 추천 칩 */}
-            {placeSuggestions.length > 0 && (
-              <div style={{ marginTop: 6 }}>
-                {placeSuggestions.map((p) => (
-                  <button
-                    key={p}
-                    type="button"
-                    style={chipBtn}
-                    onClick={() => setPlace(p)}
-                  >
-                    {p}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-
-          <div>
-            <div style={labelStyle}>{t.actionLabel}</div>
-            <input
-              type="text"
-              value={action}
-              onChange={(e) => setAction(e.target.value)}
-              style={inputStyle}
-            />
-            {/* 행동 추천 칩 */}
-            {actionSuggestions.length > 0 && (
-              <div style={{ marginTop: 6 }}>
-                {actionSuggestions.map((a) => (
-                  <button
-                    key={a}
-                    type="button"
-                    style={chipBtn}
-                    onClick={() => setAction(a)}
-                  >
-                    {a}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-
-          <div>
-            <div style={labelStyle}>{t.endingLabel}</div>
-            <input
-              type="text"
-              value={ending}
-              onChange={(e) => setEnding(e.target.value)}
-              style={inputStyle}
-            />
-          </div>
-        </div>
-
-        {ideasError && <div style={errorTextStyle}>{ideasError}</div>}
-      </div>
-
-      {/* AI에게 동화 만들기 요청 버튼 */}
-      <div style={{ marginTop: 20 }}>
-        <button
-          type="button"
-          onClick={handleCreateStory}
-          style={primaryButton}
-          disabled={isStoryLoading}
-        >
-          {isStoryLoading ? t.loading : t.askButton}
-        </button>
-        {storyError && <div style={errorTextStyle}>{storyError}</div>}
-      </div>
-
-      {/* 동화 결과 */}
-      {story && (
-        <div style={{ marginTop: 18 }}>
-          <StoryResult title={t.resultTitle} story={story} />
+          {story}
         </div>
       )}
     </section>
