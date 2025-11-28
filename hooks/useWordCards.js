@@ -26,18 +26,16 @@ function buildImageUrl(letter, id) {
 }
 
 export default function useWordCards(selectedLetter) {
-  // 잘못된 값이 들어와도 항상 "A"로 fallback
-  const safeLetter = ALPHABETS.includes(selectedLetter) ? selectedLetter : "A";
+  const upperLetter = (selectedLetter || "A").toString().toUpperCase();
+  const safeLetter = ALPHABETS.includes(upperLetter) ? upperLetter : "A";
 
   const cardsForLetter = useMemo(() => {
-    // 원본 데이터: [{ id, word? , imageUrl? }, ...]
     const rawList = (WORD_CARDS && WORD_CARDS[safeLetter]) || [];
 
     return rawList.map((card) => {
       const id = card.id;
       const word = card.word || idToWord(id);
       const imageUrl = card.imageUrl || buildImageUrl(safeLetter, id);
-
       return { ...card, id, word, imageUrl };
     });
   }, [safeLetter]);
