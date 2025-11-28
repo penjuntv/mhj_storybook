@@ -1,12 +1,13 @@
 // pages/api/storybook.js
 import OpenAI from "openai";
+import { STORY_THEME_DESCRIPTIONS } from "../../data/storyThemes";
 
 const client = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
 
 export default async function handler(req, res) {
-  // CORS (Framer / 브라우저 직접 호출 대비)
+  // CORS
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type");
@@ -22,19 +23,10 @@ export default async function handler(req, res) {
   }
 
   try {
-    const body = typeof req.body === "string" ? JSON.parse(req.body) : req.body;
+    const body =
+      typeof req.body === "string" ? JSON.parse(req.body) : req.body;
 
-    const {
-      words,
-      mustIncludeWords = [],
-      language = "ko",
-      kidName = "",
-      pov = "first", // "first" | "third"
-      length = "normal", // "short" | "normal" | "long"
-      place = "",
-      action = "",
-      ending = "",
-    } = body || {};
+    const { words, storySettings } = body || {};
 
     if (!Array.isArray(words) || words.length === 0) {
       res.status(400).json({ error: "words 배열이 비어 있습니다." });
@@ -42,62 +34,55 @@ export default async function handler(req, res) {
     }
 
     const safeWords = words.slice(0, 8).join(", ");
-    const safeMustInclude =
-      Array.isArray(mustIncludeWords) && mustIncludeWords.length > 0
-        ? mustIncludeWords.slice(0, 8).join(", ")
-        : "";
 
-    let lengthInstruction = "";
-    let maxTokens = 600;
+    const language = storySettings?.language || "en";
+    const name = storySettings?.kidName || "the child";
+    const pov = storySettings?.pov === "third" ? "third" : "first";
+    const themeId = storySettings?.themeId || "everyday";
+    const length = storySettings?.length || "normal";
 
-    if (length === "short") {
-      lengthInstruction =
-        "Make the story quite short, about 3–4 short lines in total.";
-      maxTokens = 350;
-    } else if (length === "long") {
-      lengthInstruction =
-        "Make the story a bit longer, about 8–12 short lines in total, but still easy.";
-      maxTokens = 800;
+    const themeDescription =
+      STORY_THEME_DESCRIPTIONS[themeId] ||
+      STORY_THEME_DESCRIPTIONS.everyday;
+
+    let povInstruction;
+    if (pov === "first") {
+      povInstruction = `Tell the story in FIRST PERSON, using "I", as if ${name} is the hero.`;
     } else {
-      // normal
-      lengthInstruction =
-        "Make the story medium length, about 5–7 short lines in total.";
-      maxTokens = 600;
+      povInstruction =
+        `Tell the story in THIRD PERSON, using "he/she/they" for ${name}, ` +
+        `but still make the child feel like the main character.`;
     }
 
-    const childName = (kidName || "").trim() || "the child";
+    let lengthInstruction;
+    if (length === "short") {
+      lengthInstruction =
+        "Keep the story very short: about 3–5 simple sentences total.";
+    } else if (length === "long") {
+      lengthInstruction =
+        "Make the story a bit longer: about 12–16 short sentences, grouped into a few small paragraphs.";
+    } else {
+      lengthInstruction =
+        "Make the story medium length: about 6–10 short sentences.";
+    }
 
-    const povInstruction =
-      pov === "third"
-        ? `Write the story in simple third person, as if a grown-up is telling about ${childName}. Use "${childName}" or "the child" instead of "I".`
-        : `Write the story in the child's first person voice using "I". Pretend that ${childName} is telling the story.`;
-
-    const placeLine = place ? `- Place: ${place}\n` : "";
-    const actionLine = action ? `- What happens: ${action}\n` : "";
-    const endingLine = ending ? `- How it ends: ${ending}\n` : "";
-
-    const mustIncludeLine = safeMustInclude
-      ? `Use these starred words and make sure they appear in the story: ${safeMustInclude}.\n`
-      : "";
-
-    // 이야기 언어는 계속 "아주 쉬운 영어" 기준 (UI 언어와는 무관)
     const userPrompt = `
 Today's English words: ${safeWords}
 
-Story idea:
-${placeLine}${actionLine}${endingLine}
-
-${mustIncludeLine}
-Write a very simple, warm children's story for a 3–7 year old ESL learner.
+Child:
+- Name: ${name}
+- Preferred story theme: ${themeDescription}
+- Point of view: ${pov === "first" ? "1st person (I)" : "3rd person"}
 
 Requirements:
-- Use as many of the given words as is natural.
-- Use very simple English (A1–A2 level).
-- 1–3 short sentences per line.
-- ${lengthInstruction}
+- Language: English only.
+- Use as many of the words as sounds natural.
 - ${povInstruction}
-- Avoid anything scary, violent, or inappropriate.
-    `.trim();
+- ${lengthInstruction}
+- Very simple English (A1~A2 level) for 3–7 year old ESL learners.
+- Short sentences, clear grammar, warm and safe content.
+- No scary or violent scenes.
+`.trim();
 
     const completion = await client.chat.completions.create({
       model: "gpt-4o-mini",
@@ -105,12 +90,12 @@ Requirements:
         {
           role: "system",
           content:
-            "You are an expert children's storyteller. You write warm, safe stories in very simple English for 3–7 year old ESL learners.",
+            "You are an expert children's storyteller. Write warm, safe stories in very simple English for 3–7 year old ESL learners.",
         },
         { role: "user", content: userPrompt },
       ],
       temperature: 0.7,
-      max_tokens: maxTokens,
+      max_tokens: 600,
     });
 
     const story =
