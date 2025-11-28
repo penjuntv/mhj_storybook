@@ -1,10 +1,12 @@
 // pages/index.js
 import { useState } from "react";
 import { getUIText } from "../lib/uiText";
-import { useWordCards } from "../hooks/useWordCards";
+import useWordCards from "../hooks/useWordCards";
+
 import AlphabetPicker from "../components/storybook/AlphabetPicker";
 import WordCardsGrid from "../components/storybook/WordCardsGrid";
 import Step2Story from "../components/storybook/Step2Story";
+import StoryResult from "../components/storybook/StoryResult";
 
 const MAX_WORDS = 8;
 
@@ -12,10 +14,20 @@ export default function HomePage() {
   const [language, setLanguage] = useState("ko"); // "en" | "ko" | "zh"
   const [selectedLetter, setSelectedLetter] = useState("A");
 
-  const { cards, isLoading, error: cardsError } = useWordCards(selectedLetter);
+  const { cards, isLoading, error: cardsError } =
+    useWordCards(selectedLetter);
 
   const [selectedWords, setSelectedWords] = useState([]); // [{ word, mustInclude }]
   const [wordInput, setWordInput] = useState("");
+
+  // STEP 2 상태
+  const [kidName, setKidName] = useState("");
+  const [pov, setPov] = useState("first"); // "first" | "third"
+  const [themeId, setThemeId] = useState("everyday");
+  const [length, setLength] = useState("normal");
+  const [isRequesting, setIsRequesting] = useState(false);
+  const [story, setStory] = useState("");
+  const [storyError, setStoryError] = useState(null);
 
   const t = getUIText(language);
 
@@ -25,7 +37,11 @@ export default function HomePage() {
     if (!word) return;
 
     setSelectedWords((prev) => {
-      if (prev.some((w) => w.word.toLowerCase() === word.toLowerCase())) {
+      if (
+        prev.some(
+          (w) => w.word.toLowerCase() === word.toLowerCase()
+        )
+      ) {
         return prev;
       }
       if (prev.length >= MAX_WORDS) return prev;
@@ -35,307 +51,345 @@ export default function HomePage() {
 
   // 카드 클릭
   const handleCardClick = (cardWord) => {
-    addWordToChips(cardWord);
+    addWordToChips(cardWord.label || cardWord.word || "");
   };
 
-  // 수동 입력 → 쉼표/엔터/줄바꿈으로 칩 생성
-  const processWordInput = () => {
-    const tokens = wordInput
-      .split(/[,;\n]/)
-      .map((w) => w.trim())
-      .filter(Boolean);
+  // 입력창에서 엔터/쉼표로 추가
+  const handleWordInputChange = (e) => {
+    const value = e.target.value;
+    setWordInput(value);
 
-    tokens.forEach(addWordToChips);
-  };
-
-  const handleWordInputKeyDown = (e) => {
-    if (e.key === "Enter") {
-      e.preventDefault();
-      processWordInput();
+    // 쉼표나 줄바꿈이 들어오면 바로 잘라서 chip 추가
+    if (/[,\n]/.test(value)) {
+      const parts = value
+        .split(/[,\n]/)
+        .map((v) => v.trim())
+        .filter(Boolean);
+      parts.forEach(addWordToChips);
+      setWordInput("");
     }
   };
 
   const handleWordInputBlur = () => {
-    processWordInput();
+    if (!wordInput.trim()) return;
+    const parts = wordInput
+      .split(/[,\n]/)
+      .map((v) => v.trim())
+      .filter(Boolean);
+    parts.forEach(addWordToChips);
+    setWordInput("");
   };
 
-  const removeWordFromChips = (wordToRemove) => {
-    setSelectedWords((prev) =>
-      prev.filter((w) => w.word.toLowerCase() !== wordToRemove.toLowerCase())
-    );
-  };
-
-  const toggleMustInclude = (wordToToggle) => {
+  const toggleMustInclude = (word) => {
     setSelectedWords((prev) =>
       prev.map((w) =>
-        w.word.toLowerCase() === wordToToggle.toLowerCase()
-          ? { ...w, mustInclude: !w.mustInclude }
-          : w
+        w.word === word ? { ...w, mustInclude: !w.mustInclude } : w
       )
     );
   };
 
-  const selectedCount = selectedWords.length;
+  const removeWord = (word) => {
+    setSelectedWords((prev) =>
+      prev.filter((w) => w.word !== word)
+    );
+  };
+
+  // STORY 요청
+  const handleAskStory = async (settings) => {
+    if (!selectedWords.length || isRequesting) return;
+
+    try {
+      setIsRequesting(true);
+      setStoryError(null);
+      setStory("");
+
+      const words = selectedWords.map((w) => w.word);
+
+      const res = await fetch("/api/storybook", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          words,
+          storySettings: {
+            language,
+            kidName: settings.kidName,
+            pov: settings.pov,
+            themeId: settings.themeId,
+            length: settings.length,
+          },
+        }),
+      });
+
+      if (!res.ok) {
+        throw new Error(`API error ${res.status}`);
+      }
+
+      const data = await res.json();
+      setStory(data.story || "");
+    } catch (err) {
+      console.error(err);
+      setStoryError(
+        err?.message || "동화를 만드는 중 오류가 발생했습니다."
+      );
+    } finally {
+      setIsRequesting(false);
+    }
+  };
 
   return (
-    <div
+    <main
       style={{
         minHeight: "100vh",
-        background: "#FFF6EC",
-        padding: "24px 12px 48px",
-        display: "flex",
-        justifyContent: "center",
-        fontFamily:
-          '-apple-system, BlinkMacSystemFont, "Noto Sans KR", system-ui, sans-serif',
-        color: "#4a2f1a",
+        backgroundColor: "#fff7ec",
+        paddingBottom: "80px",
       }}
     >
-      <main
+      <div
         style={{
-          maxWidth: "1080px",
-          width: "100%",
-          background: "#FFEFD9",
-          borderRadius: "24px",
-          padding: "32px 32px 40px",
-          boxShadow: "0 18px 40px rgba(0,0,0,0.08)",
+          maxWidth: "1120px",
+          margin: "0 auto",
+          padding: "40px 24px 0",
         }}
       >
         {/* 헤더 + 언어 토글 */}
-        <div
+        <header
           style={{
             display: "flex",
             justifyContent: "space-between",
             alignItems: "center",
             marginBottom: "24px",
-            gap: 12,
+            gap: "12px",
           }}
         >
           <div>
-            <div
-              style={{
-                fontSize: 13,
-                letterSpacing: "0.16em",
-                textTransform: "uppercase",
-                color: "#C58B4E",
-                marginBottom: 4,
-              }}
-            >
-              MHJ STORYBOOK
-            </div>
             <h1
               style={{
-                fontSize: 26,
+                fontSize: "26px",
                 fontWeight: 800,
-                margin: 0,
-                marginBottom: 4,
+                color: "#5b3b28",
+                marginBottom: "4px",
               }}
             >
-              {t.header}
+              {t.appTitle}
             </h1>
-            <p
-              style={{
-                margin: 0,
-                fontSize: 14,
-                color: "#7A5A3A",
-              }}
-            >
-              {t.subtitle}
-            </p>
           </div>
-
-          <div style={{ display: "flex", gap: 8 }}>
-            {[
-              { code: "en", label: "EN" },
-              { code: "ko", label: "KO" },
-              { code: "zh", label: "中文" },
-            ].map((btn) => {
-              const active = language === btn.code;
-              return (
-                <button
-                  key={btn.code}
-                  type="button"
-                  onClick={() => setLanguage(btn.code)}
-                  style={{
-                    padding: "6px 14px",
-                    borderRadius: 999,
-                    border: active ? "0" : "1px solid #d9a36b",
-                    background: active ? "#FF8C41" : "transparent",
-                    color: active ? "#fff" : "#7a4c25",
-                    fontSize: 12,
-                    cursor: "pointer",
-                    fontWeight: 600,
-                  }}
-                >
-                  {btn.label}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* STEP 1 */}
-        <section
-          style={{
-            background: "#FFE3C1",
-            borderRadius: "20px",
-            padding: "24px 24px 28px",
-            marginBottom: "24px",
-          }}
-        >
           <div
             style={{
-              fontSize: 16,
-              fontWeight: 700,
-              marginBottom: 4,
+              display: "flex",
+              gap: "8px",
+              backgroundColor: "#ffe5c9",
+              padding: "4px",
+              borderRadius: "999px",
+            }}
+          >
+            {["en", "ko", "zh"].map((lng) => (
+              <button
+                key={lng}
+                type="button"
+                onClick={() => setLanguage(lng)}
+                style={{
+                  minWidth: "44px",
+                  padding: "6px 10px",
+                  borderRadius: "999px",
+                  border: "none",
+                  fontSize: "13px",
+                  fontWeight: 700,
+                  cursor: "pointer",
+                  backgroundColor:
+                    language === lng ? "#ff9448" : "transparent",
+                  color: language === lng ? "#fff" : "#5b3b28",
+                }}
+              >
+                {lng === "en" ? "EN" : lng === "ko" ? "KO" : "中文"}
+              </button>
+            ))}
+          </div>
+        </header>
+
+        {/* STEP 1 영역 */}
+        <section
+          style={{
+            padding: "32px 32px 28px",
+            borderRadius: "32px",
+            backgroundColor: "#ffe5c9",
+            boxShadow: "0 12px 30px rgba(0,0,0,0.06)",
+          }}
+        >
+          <h2
+            style={{
+              fontSize: "20px",
+              fontWeight: 800,
+              marginBottom: "8px",
+              color: "#5b3b28",
             }}
           >
             {t.step1Title}
-          </div>
-          <div
+          </h2>
+          <p
             style={{
-              fontSize: 13,
-              marginBottom: 16,
-              lineHeight: 1.4,
+              fontSize: "15px",
+              lineHeight: 1.5,
+              color: "#7b5a3b",
+              marginBottom: "20px",
             }}
           >
             {t.step1Subtitle}
-          </div>
+          </p>
 
-          {/* 알파벳 */}
-          <div style={{ fontSize: 13, marginBottom: 8 }}>{t.pickFromCards}</div>
+          {/* 알파벳 선택 */}
           <AlphabetPicker
             selectedLetter={selectedLetter}
             onSelect={setSelectedLetter}
+            label={t.pickFromCards}
           />
 
-          {/* 카드 영역 */}
-          {isLoading ? (
-            <div style={{ fontSize: 13, marginTop: 12 }}>
-              카드 이미지를 불러오는 중입니다…
-            </div>
-          ) : cardsError ? (
-            <div
+          {/* 카드 그리드 */}
+          <WordCardsGrid
+            t={t}
+            letter={selectedLetter}
+            cards={cards}
+            isLoading={isLoading}
+            error={cardsError}
+            onCardClick={handleCardClick}
+          />
+
+          {/* 단어 입력 & 칩 */}
+          <div style={{ marginTop: "24px" }}>
+            <h3
               style={{
-                color: "#D23B3B",
-                fontSize: 13,
-                marginTop: 12,
+                fontSize: "16px",
+                fontWeight: 700,
+                color: "#5b3b28",
+                marginBottom: "8px",
               }}
             >
-              {cardsError}
-            </div>
-          ) : (
-            <WordCardsGrid
-              cards={cards}
-              letter={selectedLetter}
-              onCardClick={handleCardClick}
-              noCardsText={t.noCardsForLetter}
+              {t.writeWordsLabel}
+            </h3>
+            <textarea
+              value={wordInput}
+              onChange={handleWordInputChange}
+              onBlur={handleWordInputBlur}
+              rows={3}
+              style={{
+                width: "100%",
+                borderRadius: "18px",
+                border: "1px solid rgba(193, 145, 108, 0.8)",
+                padding: "10px 12px",
+                fontSize: "14px",
+                resize: "vertical",
+              }}
+              placeholder={t.writeWordsPlaceholder}
             />
-          )}
 
-          {/* 오늘 배운 단어 입력 */}
-          <div
-            style={{
-              marginTop: 16,
-              marginBottom: 4,
-              fontWeight: 600,
-              fontSize: 14,
-            }}
-          >
-            {t.writeWordsLabel}
-          </div>
-          <textarea
-            style={{
-              width: "100%",
-              minHeight: "90px",
-              borderRadius: "16px",
-              border: "2px solid #f5c08c",
-              padding: "10px 12px",
-              fontSize: "14px",
-              resize: "vertical",
-              outline: "none",
-              boxSizing: "border-box",
-              background: "#FFF9F3",
-              marginBottom: "12px",
-            }}
-            placeholder={t.writeWordsPlaceholder}
-            value={wordInput}
-            onChange={(e) => setWordInput(e.target.value)}
-            onKeyDown={handleWordInputKeyDown}
-            onBlur={handleWordInputBlur}
-          />
+            <p
+              style={{
+                fontSize: "13px",
+                color: "#8b6b4a",
+                marginTop: "8px",
+              }}
+            >
+              {t.chipsLabel.replace(
+                "0/8",
+                `${selectedWords.length}${t.countSuffix}`
+              )}
+            </p>
 
-          {/* Word chips */}
-          <div style={{ fontSize: 13 }}>
-            {t.chipsLabel}
-            {selectedCount}
-            {t.countSuffix}
-          </div>
-          {selectedCount === 0 ? (
-            <div style={{ fontSize: 13, marginTop: 6 }}>{t.selectedZero}</div>
-          ) : (
             <div
               style={{
+                minHeight: "32px",
+                marginTop: "8px",
                 display: "flex",
                 flexWrap: "wrap",
-                gap: 8,
-                marginTop: 8,
+                gap: "6px",
               }}
             >
-              {selectedWords.map((item) => (
+              {selectedWords.length === 0 && (
+                <span
+                  style={{
+                    fontSize: "13px",
+                    color: "#a17a53",
+                  }}
+                >
+                  {t.selectedZero}
+                </span>
+              )}
+              {selectedWords.map((w) => (
                 <div
-                  key={item.word}
+                  key={w.word}
                   style={{
                     display: "inline-flex",
                     alignItems: "center",
+                    gap: "6px",
                     padding: "6px 10px",
                     borderRadius: "999px",
-                    background: "#FFF9F3",
-                    border: item.mustInclude
-                      ? "1px solid #FF8C41"
-                      : "1px solid #F2C199",
+                    backgroundColor: "#fff6eb",
+                    border: w.mustInclude
+                      ? "2px solid #ff9448"
+                      : "1px solid rgba(201, 154, 118, 0.7)",
                     fontSize: "13px",
-                    cursor: "pointer",
-                    boxShadow: "0 6px 12px rgba(0,0,0,0.08)",
+                    color: "#5b3b28",
                   }}
-                  onClick={() => toggleMustInclude(item.word)}
                 >
-                  <span
+                  <button
+                    type="button"
+                    onClick={() => toggleMustInclude(w.word)}
                     style={{
-                      color: item.mustInclude ? "#FF8C41" : "#d0a17a",
-                      marginRight: 4,
-                      fontSize: 13,
-                    }}
-                  >
-                    ★
-                  </span>
-                  <span>{item.word}</span>
-                  <span
-                    style={{
-                      marginLeft: 6,
-                      fontSize: 13,
+                      border: "none",
+                      padding: 0,
+                      margin: 0,
+                      background: "transparent",
                       cursor: "pointer",
-                      opacity: 0.7,
+                      fontSize: "14px",
                     }}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      removeWordFromChips(item.word);
+                    title="반드시 넣기 토글"
+                  >
+                    {w.mustInclude ? "★" : "☆"}
+                  </button>
+                  <span>{w.word}</span>
+                  <button
+                    type="button"
+                    onClick={() => removeWord(w.word)}
+                    style={{
+                      border: "none",
+                      padding: 0,
+                      marginLeft: "2px",
+                      background: "transparent",
+                      cursor: "pointer",
+                      fontSize: "13px",
                     }}
                   >
-                    ✕
-                  </span>
+                    ×
+                  </button>
                 </div>
               ))}
             </div>
-          )}
+          </div>
         </section>
 
-        {/* STEP 2 – 아이 프로필 + 장소/행동 추천 + 스토리 */}
+        {/* STEP 2 – 아이 프로필 + 테마 + 길이 */}
         <Step2Story
-          language={language}
           t={t}
+          language={language}
           selectedWords={selectedWords}
+          kidName={kidName}
+          setKidName={setKidName}
+          pov={pov}
+          setPov={setPov}
+          themeId={themeId}
+          setThemeId={setThemeId}
+          length={length}
+          setLength={setLength}
+          onAskStory={handleAskStory}
+          isRequesting={isRequesting}
         />
-      </main>
-    </div>
+
+        {/* 결과 표시 */}
+        <StoryResult
+          t={t}
+          story={story}
+          error={storyError}
+        />
+      </div>
+    </main>
   );
 }
