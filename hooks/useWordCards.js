@@ -1,60 +1,58 @@
 // hooks/useWordCards.js
+// Supabase에 올려 둔 카드 이미지를 사용해서
+// 선택된 알파벳에 해당하는 단어 카드 목록을 만들어 주는 커스텀 훅
+
 import { useMemo } from "react";
 import { WORD_CARDS } from "../data/wordCards";
 
-// Supabase base URL (NEXT_PUBLIC_SUPABASE_URL)
-const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
+const ALPHABETS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("");
 
-// "A_airplane" -> "Airplane"
+// id: "A_airplane" -> "Airplane"
 function idToWord(id) {
   if (!id) return "";
-  const raw = id.split("_").slice(1).join(" ");
+  const raw = id.split("_").slice(1).join(" "); // "airplane", "X-mas", "Doll 2" 등
   if (!raw) return "";
   return raw.charAt(0).toUpperCase() + raw.slice(1);
 }
 
-// public 이미지 URL 생성
-// word-images/default_en/{letter}/{id}.png
+// Supabase public URL 생성
+// 예: {NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/word-images/default_en/A/A_airplane.png
 function buildImageUrl(letter, id) {
-  if (!SUPABASE_URL) return "";
-  return `${SUPABASE_URL}/storage/v1/object/public/word-images/default_en/${letter}/${id}.png`;
+  const baseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  if (!baseUrl) return "";
+  return `${baseUrl}/storage/v1/object/public/word-images/default_en/${letter}/${id}.png`;
 }
 
 /**
- * 알파벳 한 글자에 해당하는 카드 목록을 반환하는 훅
- * - Supabase JS 클라이언트로 list() 호출하지 않고
- *   data/wordCards.js에 있는 ID를 이용해 URL을 직접 만든다.
- * - WORD_CARDS 구조는 예전 코드와 동일하다고 가정
- *   (예: WORD_CARDS["A"] = [{ id: "A_airplane" }, ...])
+ * useWordCards
+ * - selectedLetter: "A" ~ "Z"
+ * - Supabase에 올려 둔 카드 이미지 경로 규칙을 이용해 imageUrl을 만들어 줌
+ * - WORD_CARDS 데이터가 가지고 있는 id / imageUrl도 함께 활용
  */
-export default function useWordCards(letter) {
-  const cards = useMemo(() => {
-    const safeLetter = letter || "A";
-    const list = (WORD_CARDS && WORD_CARDS[safeLetter]) || [];
+export function useWordCards(selectedLetter) {
+  const safeLetter = ALPHABETS.includes(selectedLetter)
+    ? selectedLetter
+    : "A";
 
-    return list.map((item) => {
-      // item 이 문자열이든 객체든 모두 지원
-      const id = typeof item === "string" ? item : item.id;
-      const word =
-        typeof item === "object" && item.word
-          ? item.word
-          : idToWord(id);
-      const imageUrl =
-        typeof item === "object" && item.imageUrl
-          ? item.imageUrl
-          : buildImageUrl(safeLetter, id);
+  const cardsForLetter = useMemo(() => {
+    const list = WORD_CARDS[safeLetter] || [];
+
+    return list.map((card) => {
+      // WORD_CARDS 안에 word가 없더라도 id에서 자동 생성
+      const word = card.word || idToWord(card.id);
+
+      // WORD_CARDS에 imageUrl이 명시돼 있으면 우선 사용,
+      // 없으면 Supabase 경로 규칙으로 생성
+      const imageUrl = card.imageUrl || buildImageUrl(safeLetter, card.id);
 
       return {
-        id,
+        ...card,
+        letter: safeLetter,
         word,
         imageUrl,
       };
     });
-  }, [letter]);
+  }, [safeLetter]);
 
-  return {
-    cards,
-    isLoading: false,
-    error: null,
-  };
+  return { cardsForLetter, letter: safeLetter };
 }
