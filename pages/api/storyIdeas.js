@@ -12,13 +12,13 @@ export default async function handler(req, res) {
   }
 
   try {
-    const { words } = req.body;
+    const body = typeof req.body === "string" ? JSON.parse(req.body) : req.body;
+    const { words } = body || {};
 
     if (!Array.isArray(words) || words.length === 0) {
       return res.status(400).json({ error: "words must be a non-empty array" });
     }
 
-    // 단어 목록을 간단한 문자열로 정리
     const wordList = words.join(", ");
 
     const systemPrompt =
@@ -76,7 +76,6 @@ Return ONLY valid JSON in this exact structure:
     try {
       parsed = JSON.parse(raw);
     } catch (e) {
-      // 혹시 모델이 JSON 밖에 텍스트를 더 붙여도 최대한 복구 시도
       const jsonStart = raw.indexOf("{");
       const jsonEnd = raw.lastIndexOf("}");
       if (jsonStart !== -1 && jsonEnd !== -1 && jsonEnd > jsonStart) {
@@ -97,7 +96,6 @@ Return ONLY valid JSON in this exact structure:
         .json({ error: "Model returned invalid structure", raw });
     }
 
-    // 안전하게 6개까지만 자르기
     const places = parsed.places.slice(0, 6);
     const actions = parsed.actions.slice(0, 6);
 
