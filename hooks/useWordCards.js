@@ -1,19 +1,21 @@
 // hooks/useWordCards.js
+// Supabase에서 알파벳별 단어 카드(이미지) 목록을 불러오는 커스텀 훅
+
 import { useEffect, useState } from "react";
 import { supabase } from "../lib/supabaseClient";
 
 const BUCKET_NAME = "word-images";
-const BASE_FOLDER = "default_en"; // word-images/default_en/<Letter>/... 구조라고 가정
+const BASE_FOLDER = "default_en"; // word-images/default_en/<Letter>/...
 
 export function useWordCards(selectedLetter) {
-  const [cards, setCards] = useState([]); // [{ id, word, imageUrl }]
+  const [cards, setCards] = useState([]); // { id, word, imageUrl }
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
 
   useEffect(() => {
-    let isCancelled = false;
+    let cancelled = false;
 
-    async function loadCards() {
+    async function load() {
       setIsLoading(true);
       setError("");
       try {
@@ -22,14 +24,15 @@ export function useWordCards(selectedLetter) {
         const { data, error: listError } = await supabase.storage
           .from(BUCKET_NAME)
           .list(folderPath, {
-            limit: 50,
+            limit: 100,
             offset: 0,
             sortBy: { column: "name", order: "asc" },
           });
 
         if (listError) throw listError;
+
         if (!data) {
-          if (!isCancelled) setCards([]);
+          if (!cancelled) setCards([]);
           return;
         }
 
@@ -43,14 +46,14 @@ export function useWordCards(selectedLetter) {
             .from(BUCKET_NAME)
             .getPublicUrl(fullPath);
 
-          // 파일명에서 단어 추출: A_airplane.png -> Airplane
+          // 파일명: A_airplane.png -> airplane -> Airplane
           let word = file.name;
           if (word.includes("_")) {
             const parts = word.split("_");
-            parts.shift(); // 앞의 알파벳 제거
+            parts.shift();
             word = parts.join("_");
           }
-          word = word.replace(/\.[^/.]+$/, ""); // 확장자 제거
+          word = word.replace(/\.[^/.]+$/, "");
           if (word.length > 0) {
             word = word.charAt(0).toUpperCase() + word.slice(1);
           }
@@ -62,24 +65,22 @@ export function useWordCards(selectedLetter) {
           };
         });
 
-        if (!isCancelled) {
-          setCards(mapped);
-        }
+        if (!cancelled) setCards(mapped);
       } catch (err) {
-        console.error("Supabase list error:", err);
-        if (!isCancelled) {
+        console.error("useWordCards: failed to load cards", err);
+        if (!cancelled) {
           setError("카드를 불러오는 중 문제가 발생했습니다.");
           setCards([]);
         }
       } finally {
-        if (!isCancelled) setIsLoading(false);
+        if (!cancelled) setIsLoading(false);
       }
     }
 
-    loadCards();
+    load();
 
     return () => {
-      isCancelled = true;
+      cancelled = true;
     };
   }, [selectedLetter]);
 
