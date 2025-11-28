@@ -1,36 +1,62 @@
 // components/storybook/Step2Story.js
-import React, { useState } from "react";
+import { useState } from "react";
+import { getUIText } from "../../lib/uiText";
 
-export default function Step2Story({ language, t, selectedWords }) {
+export default function Step2Story(props) {
+  const {
+    language = "ko",
+    selectedWords: rawSelectedWords = [],
+    onStoryGenerated,
+    onStoryError,
+  } = props;
+
+  const t = getUIText(language);
+
+  // selectedWords 형식 통일: { word, mustInclude }
+  const selectedWords = Array.isArray(rawSelectedWords)
+    ? rawSelectedWords.map((item) =>
+        typeof item === "string"
+          ? { word: item, mustInclude: false }
+          : {
+              word: item.word || "",
+              mustInclude: Boolean(item.mustInclude),
+            }
+      )
+    : [];
+
+  const words = selectedWords
+    .map((w) => (w.word || "").trim())
+    .filter(Boolean);
+  const mustIncludeWords = selectedWords
+    .filter((w) => w.mustInclude)
+    .map((w) => w.word.trim())
+    .filter(Boolean);
+
   const [kidName, setKidName] = useState("");
-  const [kidAge, setKidAge] = useState("");
-  const [pov, setPov] = useState("first"); // 'first' | 'third'
+  const [pov, setPov] = useState("first"); // "first" | "third"
+  const [length, setLength] = useState("normal"); // "short" | "normal" | "long"
 
   const [place, setPlace] = useState("");
   const [action, setAction] = useState("");
   const [ending, setEnding] = useState("");
 
-  const [placeSuggestions, setPlaceSuggestions] = useState([]);
-  const [actionSuggestions, setActionSuggestions] = useState([]);
+  const [suggestedPlaces, setSuggestedPlaces] = useState([]);
+  const [suggestedActions, setSuggestedActions] = useState([]);
+  const [isIdeasLoading, setIsIdeasLoading] = useState(false);
+  const [ideasError, setIdeasError] = useState("");
 
   const [story, setStory] = useState("");
   const [storyError, setStoryError] = useState("");
   const [isStoryLoading, setIsStoryLoading] = useState(false);
 
-  const [ideasError, setIdeasError] = useState("");
-  const [isIdeasLoading, setIsIdeasLoading] = useState(false);
-
-  const wordsForApi = selectedWords.map((w) => w.word);
-  const mustIncludeWords = selectedWords
-    .filter((w) => w.mustInclude)
-    .map((w) => w.word);
-
-  // AI에게 장소/행동 추천 받기
-  const handleGetIdeas = async () => {
+  // AI에게 장소·행동 아이디어 요청
+  const handleAskIdeas = async () => {
     setIdeasError("");
+    setSuggestedPlaces([]);
+    setSuggestedActions([]);
 
-    if (wordsForApi.length < 2) {
-      setIdeasError(t.ideasTooFewWords);
+    if (words.length < 2) {
+      setIdeasError(t.storyTooFewWords);
       return;
     }
 
@@ -39,32 +65,43 @@ export default function Step2Story({ language, t, selectedWords }) {
       const res = await fetch("/api/storyIdeas", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ words: wordsForApi }),
+        body: JSON.stringify({ words }),
       });
 
       if (!res.ok) {
-        const text = await res.text();
-        throw new Error(text || "Failed to call /api/storyIdeas");
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || "Failed to fetch story ideas");
       }
 
       const data = await res.json();
-      setPlaceSuggestions(data.places || []);
-      setActionSuggestions(data.actions || []);
+      const places = Array.isArray(data.places) ? data.places : [];
+      const actions = Array.isArray(data.actions) ? data.actions : [];
+
+      setSuggestedPlaces(places);
+      setSuggestedActions(actions);
+
+      // 비어 있을 때는 첫 번째 추천값을 기본값으로 세팅
+      if (!place && places[0]) setPlace(places[0]);
+      if (!action && actions[0]) setAction(actions[0]);
     } catch (err) {
-      console.error("Error in handleGetIdeas", err);
-      setIdeasError(`${t.ideasErrorPrefix}${err.message || String(err)}`);
+      console.error("Error in handleAskIdeas", err);
+      setIdeasError(
+        (err && err.message) || "장소·행동 아이디어를 가져오는 중 오류가 발생했습니다."
+      );
     } finally {
       setIsIdeasLoading(false);
     }
   };
 
-  // 동화 생성
+  // 동화 생성 요청
   const handleRequestStory = async () => {
     setStory("");
     setStoryError("");
+    onStoryError && onStoryError("");
 
-    if (wordsForApi.length < 2) {
-      setStoryError("단어는 최소 2개 이상 선택해 주세요.");
+    if (words.length < 2) {
+      setStoryError(t.storyTooFewWords);
+      onStoryError && onStoryError(t.storyTooFewWords);
       return;
     }
 
@@ -75,73 +112,158 @@ export default function Step2Story({ language, t, selectedWords }) {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          words: wordsForApi,
+          words,
           mustIncludeWords,
+          language,
+          kidName: kidName || "",
+          pov, // "first" or "third"
+          length, // "short" | "normal" | "long"
           place,
           action,
           ending,
-          language,
-          profile: {
-            kidName: kidName || "",
-            kidAge: kidAge || "",
-            pov, // 'first' or 'third'
-          },
         }),
       });
 
       if (!res.ok) {
-        const text = await res.text();
-        throw new Error(text || "Failed to call /api/storybook");
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || "Failed to call /api/storybook");
       }
 
       const data = await res.json();
-      if (data.error) throw new Error(data.error);
-      setStory(data.story || "");
+      const newStory = data.story || "";
+
+      setStory(newStory);
+      onStoryGenerated && onStoryGenerated(newStory);
     } catch (err) {
       console.error("Error generating story", err);
-      setStoryError(err.message || "스토리를 생성하는 중 오류가 발생했습니다.");
+      const msg =
+        (err && err.message) ||
+        "스토리를 생성하는 중 오류가 발생했습니다.";
+      setStoryError(msg);
+      onStoryError && onStoryError(msg);
     } finally {
       setIsStoryLoading(false);
     }
   };
 
-  const sectionBox = {
-    background: "#FDF1DE",
-    borderRadius: 24,
-    padding: 24,
-    marginTop: 24,
-  };
-
-  const inputBase = {
-    width: "100%",
-    borderRadius: 999,
-    border: "1px solid rgba(0,0,0,0.08)",
-    padding: "8px 12px",
-    fontSize: 13,
-    background: "#FFFDF8",
-    boxSizing: "border-box",
+  // 간단 스타일 (기존 레이아웃과 비슷하게)
+  const styles = {
+    section: {
+      background: "#FFF8F0",
+      borderRadius: 24,
+      padding: 24,
+      marginTop: 24,
+      boxShadow: "0 14px 30px rgba(0,0,0,0.04)",
+    },
+    badge: {
+      display: "inline-block",
+      padding: "6px 14px",
+      borderRadius: 999,
+      background: "#E3F2FF",
+      fontSize: 12,
+      fontWeight: 600,
+      letterSpacing: "0.12em",
+      textTransform: "uppercase",
+      color: "#255981",
+      marginBottom: 16,
+    },
+    label: {
+      fontSize: 13,
+      fontWeight: 600,
+      marginBottom: 4,
+      color: "#7A5A3A",
+    },
+    textInput: {
+      width: "100%",
+      borderRadius: 999,
+      border: "1px solid rgba(0,0,0,0.08)",
+      padding: "8px 12px",
+      fontSize: 13,
+      background: "#FFFDF8",
+      boxSizing: "border-box",
+    },
+    small: {
+      fontSize: 12,
+      color: "#8B6A49",
+      marginTop: 4,
+    },
+    chipsRow: {
+      display: "flex",
+      flexWrap: "wrap",
+      gap: 8,
+      marginTop: 8,
+    },
+    chipButton: (active) => ({
+      borderRadius: 999,
+      padding: "6px 12px",
+      border: "none",
+      fontSize: 13,
+      cursor: "pointer",
+      background: active ? "#FF9F4A" : "#FFE4C4",
+      color: active ? "#FFFFFF" : "#5E3B20",
+      boxShadow: active
+        ? "0 0 0 2px rgba(255,159,74,0.35)"
+        : "0 10px 20px rgba(0,0,0,0.06)",
+    }),
+    primaryButton: {
+      display: "inline-flex",
+      alignItems: "center",
+      justifyContent: "center",
+      padding: "10px 20px",
+      borderRadius: 999,
+      border: "none",
+      background: "#FF9F4A",
+      color: "#FFFFFF",
+      fontSize: 15,
+      fontWeight: 700,
+      cursor: "pointer",
+      boxShadow: "0 12px 30px rgba(255,159,74,0.35)",
+      marginTop: 12,
+    },
+    secondaryButton: {
+      display: "inline-flex",
+      alignItems: "center",
+      justifyContent: "center",
+      padding: "8px 16px",
+      borderRadius: 999,
+      border: "none",
+      background: "#FFD9A5",
+      color: "#5E3B20",
+      fontSize: 13,
+      fontWeight: 600,
+      cursor: "pointer",
+      boxShadow: "0 10px 24px rgba(0,0,0,0.06)",
+      marginBottom: 12,
+    },
+    errorText: {
+      marginTop: 8,
+      fontSize: 13,
+      color: "#C0392B",
+      padding: "8px 12px",
+      borderRadius: 12,
+      background: "#FDECEA",
+    },
+    storyBox: {
+      marginTop: 18,
+      padding: 16,
+      borderRadius: 18,
+      background: "#FFF9F0",
+      fontSize: 14,
+      lineHeight: 1.7,
+      whiteSpace: "pre-wrap",
+    },
   };
 
   return (
-    <section style={sectionBox}>
-      <div
+    <section style={styles.section}>
+      <div style={styles.badge}>STEP 2 · AI STORY</div>
+      <h2
         style={{
-          display: "inline-block",
-          padding: "6px 14px",
-          borderRadius: 999,
-          background: "#E3F2FF",
-          fontSize: 12,
-          fontWeight: 600,
-          letterSpacing: "0.12em",
-          textTransform: "uppercase",
-          color: "#255981",
-          marginBottom: 16,
+          fontSize: 20,
+          fontWeight: 700,
+          marginBottom: 8,
         }}
       >
-        STEP 2 · AI가 만든 영어 동화
-      </div>
-
-      <h2 style={{ fontSize: 20, fontWeight: 700, marginBottom: 8 }}>
         {t.step2Title}
       </h2>
       <p
@@ -155,10 +277,10 @@ export default function Step2Story({ language, t, selectedWords }) {
         {t.step2Subtitle}
       </p>
 
-      {/* 아이 프로필 */}
+      {/* 아이 정보 + 이야기 방식/길이 */}
       <div
         style={{
-          background: "#F6F4FF",
+          background: "#F5F7FF",
           borderRadius: 18,
           padding: 16,
           marginBottom: 18,
@@ -169,112 +291,73 @@ export default function Step2Story({ language, t, selectedWords }) {
             fontSize: 13,
             fontWeight: 600,
             marginBottom: 8,
-            color: "#4C3A6B",
+            color: "#3F4A7A",
           }}
         >
           {t.profileSectionTitle}
         </div>
+
         <div
           style={{
             display: "grid",
-            gridTemplateColumns: "2fr 1fr",
-            gap: 8,
+            gridTemplateColumns: "minmax(0, 1.2fr) minmax(0, 1fr)",
+            gap: 12,
             marginBottom: 10,
           }}
         >
           <div>
-            <label
-              style={{
-                display: "block",
-                fontSize: 12,
-                marginBottom: 4,
-                color: "#5D4A76",
-              }}
-            >
-              {t.kidNameLabel}
-            </label>
+            <div style={styles.label}>{t.kidNameLabel}</div>
             <input
               type="text"
+              style={styles.textInput}
               value={kidName}
               onChange={(e) => setKidName(e.target.value)}
-              style={inputBase}
+              placeholder="Yujin"
             />
           </div>
+
           <div>
-            <label
-              style={{
-                display: "block",
-                fontSize: 12,
-                marginBottom: 4,
-                color: "#5D4A76",
-              }}
-            >
-              {t.kidAgeLabel}
-            </label>
-            <input
-              type="number"
-              min="1"
-              max="12"
-              value={kidAge}
-              onChange={(e) => setKidAge(e.target.value)}
-              style={inputBase}
-            />
+            <div style={styles.label}>{t.lengthLabel}</div>
+            <div style={styles.chipsRow}>
+              <button
+                type="button"
+                style={styles.chipButton(length === "short")}
+                onClick={() => setLength("short")}
+              >
+                {t.lengthShort}
+              </button>
+              <button
+                type="button"
+                style={styles.chipButton(length === "normal")}
+                onClick={() => setLength("normal")}
+              >
+                {t.lengthNormal}
+              </button>
+              <button
+                type="button"
+                style={styles.chipButton(length === "long")}
+                onClick={() => setLength("long")}
+              >
+                {t.lengthLong}
+              </button>
+            </div>
           </div>
         </div>
 
         <div>
-          <div
-            style={{
-              fontSize: 12,
-              marginBottom: 4,
-              color: "#5D4A76",
-              fontWeight: 600,
-            }}
-          >
-            {t.povLabel}
-          </div>
-          <div
-            style={{
-              display: "flex",
-              gap: 8,
-              flexWrap: "wrap",
-            }}
-          >
+          <div style={styles.label}>{t.povLabel}</div>
+          <div style={styles.chipsRow}>
             <button
               type="button"
+              style={styles.chipButton(pov === "first")}
               onClick={() => setPov("first")}
-              style={{
-                padding: "6px 12px",
-                borderRadius: 999,
-                border: "none",
-                fontSize: 12,
-                cursor: "pointer",
-                background: pov === "first" ? "#FF9F4A" : "#FFFDF8",
-                color: pov === "first" ? "#fff" : "#5D4A76",
-                boxShadow:
-                  pov === "first"
-                    ? "0 0 0 2px rgba(255,159,74,0.45)"
-                    : "0 4px 10px rgba(0,0,0,0.05)",
-              }}
             >
               {t.povFirstPerson}
             </button>
             <button
               type="button"
+              style={styles.chipButton(pov === "third")}
               onClick={() => setPov("third")}
-              style={{
-                padding: "6px 12px",
-                borderRadius: 999,
-                border: "none",
-                fontSize: 12,
-                cursor: "pointer",
-                background: pov === "third" ? "#FF9F4A" : "#FFFDF8",
-                color: pov === "third" ? "#fff" : "#5D4A76",
-                boxShadow:
-                  pov === "third"
-                    ? "0 0 0 2px rgba(255,159,74,0.45)"
-                    : "0 4px 10px rgba(0,0,0,0.05)",
-              }}
             >
               {t.povThirdPerson}
             </button>
@@ -282,254 +365,105 @@ export default function Step2Story({ language, t, selectedWords }) {
         </div>
       </div>
 
-      {/* 아이디어 버튼 */}
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          gap: 12,
-          marginBottom: 12,
-          flexWrap: "wrap",
-        }}
+      {/* 장소/행동/엔딩 & 아이디어 버튼 */}
+      <button
+        type="button"
+        style={styles.secondaryButton}
+        onClick={handleAskIdeas}
+        disabled={isIdeasLoading}
       >
-        <div
-          style={{
-            fontSize: 14,
-            fontWeight: 600,
-            color: "#7A5A3A",
-          }}
-        >
-          {t.ideasButton}
-        </div>
-        <button
-          type="button"
-          onClick={handleGetIdeas}
-          disabled={isIdeasLoading}
-          style={{
-            padding: "8px 16px",
-            borderRadius: 999,
-            border: "none",
-            background: "#FF9F4A",
-            color: "#fff",
-            fontWeight: 600,
-            cursor: isIdeasLoading ? "default" : "pointer",
-            boxShadow: "0 10px 24px rgba(255,159,74,0.35)",
-            fontSize: 13,
-          }}
-        >
-          {isIdeasLoading ? t.ideasLoading : t.ideasButton}
-        </button>
-      </div>
-      <p
-        style={{
-          fontSize: 12,
-          color: "#8B6A49",
-          marginBottom: 12,
-        }}
-      >
-        {t.ideasCaption}
-      </p>
-      {ideasError && (
-        <div
-          style={{
-            fontSize: 12,
-            color: "#C0392B",
-            marginBottom: 10,
-          }}
-        >
-          {ideasError}
-        </div>
-      )}
+        {isIdeasLoading ? t.loading : t.ideasButton}
+      </button>
+      <div style={styles.small}>{t.ideasCaption}</div>
+      {ideasError && <div style={styles.errorText}>{ideasError}</div>}
 
-      {/* 장소 / 행동 / 엔딩 입력 + 추천 칩 */}
       <div
         style={{
           display: "grid",
           gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
           gap: 12,
-          marginBottom: 8,
+          marginTop: 16,
         }}
       >
-        {/* place */}
         <div>
-          <div
-            style={{
-              fontSize: 13,
-              fontWeight: 600,
-              marginBottom: 4,
-              color: "#7A5A3A",
-            }}
-          >
-            {t.placeLabel}
-          </div>
+          <div style={styles.label}>{t.placeLabel}</div>
           <input
             type="text"
+            style={styles.textInput}
             value={place}
             onChange={(e) => setPlace(e.target.value)}
-            style={inputBase}
           />
-          <div
-            style={{
-              display: "flex",
-              flexWrap: "wrap",
-              gap: 6,
-              marginTop: 6,
-            }}
-          >
-            {placeSuggestions.map((p) => (
-              <button
-                key={p}
-                type="button"
-                onClick={() => setPlace(p)}
-                style={{
-                  padding: "4px 10px",
-                  borderRadius: 999,
-                  border: "0",
-                  background: "#FFF9F3",
-                  fontSize: 12,
-                  cursor: "pointer",
-                  boxShadow: "0 4px 8px rgba(0,0,0,0.06)",
-                }}
-              >
-                {p}
-              </button>
-            ))}
-          </div>
+          {suggestedPlaces.length > 0 && (
+            <div style={styles.chipsRow}>
+              {suggestedPlaces.map((p) => (
+                <button
+                  key={p}
+                  type="button"
+                  style={styles.chipButton(place === p)}
+                  onClick={() => setPlace(p)}
+                >
+                  {p}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
 
-        {/* action */}
         <div>
-          <div
-            style={{
-              fontSize: 13,
-              fontWeight: 600,
-              marginBottom: 4,
-              color: "#7A5A3A",
-            }}
-          >
-            {t.actionLabel}
-          </div>
+          <div style={styles.label}>{t.actionLabel}</div>
           <input
             type="text"
+            style={styles.textInput}
             value={action}
             onChange={(e) => setAction(e.target.value)}
-            style={inputBase}
           />
-          <div
-            style={{
-              display: "flex",
-              flexWrap: "wrap",
-              gap: 6,
-              marginTop: 6,
-            }}
-          >
-            {actionSuggestions.map((a) => (
-              <button
-                key={a}
-                type="button"
-                onClick={() => setAction(a)}
-                style={{
-                  padding: "4px 10px",
-                  borderRadius: 999,
-                  border: "0",
-                  background: "#FFF9F3",
-                  fontSize: 12,
-                  cursor: "pointer",
-                  boxShadow: "0 4px 8px rgba(0,0,0,0.06)",
-                }}
-              >
-                {a}
-              </button>
-            ))}
-          </div>
+          {suggestedActions.length > 0 && (
+            <div style={styles.chipsRow}>
+              {suggestedActions.map((a) => (
+                <button
+                  key={a}
+                  type="button"
+                  style={styles.chipButton(action === a)}
+                  onClick={() => setAction(a)}
+                >
+                  {a}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
 
-        {/* ending */}
         <div>
-          <div
-            style={{
-              fontSize: 13,
-              fontWeight: 600,
-              marginBottom: 4,
-              color: "#7A5A3A",
-            }}
-          >
-            {t.endingLabel}
-          </div>
+          <div style={styles.label}>{t.endingLabel}</div>
           <input
             type="text"
+            style={styles.textInput}
             value={ending}
-            placeholder={t.endingPlaceholder}
             onChange={(e) => setEnding(e.target.value)}
-            style={inputBase}
+            placeholder="everyone smiles, they go to sleep..."
           />
         </div>
       </div>
 
-      <div
-        style={{
-          marginTop: 4,
-          fontSize: 12,
-          color: "#8B6A49",
-          marginBottom: 12,
-        }}
-      >
-        {t.suggestionsCaption}
-      </div>
-
-      {/* 동화 생성 버튼 */}
+      {/* 동화 요청 버튼 */}
       <button
         type="button"
+        style={styles.primaryButton}
         onClick={handleRequestStory}
         disabled={isStoryLoading}
-        style={{
-          display: "inline-flex",
-          alignItems: "center",
-          justifyContent: "center",
-          padding: "10px 20px",
-          borderRadius: 999,
-          border: "none",
-          background: isStoryLoading ? "#FFBF80" : "#FF9F4A",
-          color: "#FFFFFF",
-          fontSize: 15,
-          fontWeight: 700,
-          cursor: isStoryLoading ? "default" : "pointer",
-          boxShadow: "0 12px 30px rgba(255,159,74,0.35)",
-          marginBottom: 12,
-        }}
       >
         {isStoryLoading ? t.loading : t.askButton}
       </button>
 
       {storyError && (
-        <div
-          style={{
-            marginTop: 8,
-            fontSize: 13,
-            color: "#C0392B",
-            padding: "8px 12px",
-            borderRadius: 12,
-            background: "#FDECEA",
-          }}
-        >
+        <div style={styles.errorText}>
           {t.errorPrefix}
           {storyError}
         </div>
       )}
 
       {story && (
-        <div
-          style={{
-            marginTop: 18,
-            padding: 16,
-            borderRadius: 18,
-            background: "#FFF9F0",
-            fontSize: 14,
-            lineHeight: 1.7,
-            whiteSpace: "pre-wrap",
-          }}
-        >
+        <div style={styles.storyBox}>
           <div
             style={{
               fontWeight: 700,
