@@ -84,7 +84,7 @@ export default function WordCardsGrid({ cards, onCardClick }) {
           align-items: center;
           justify-content: center;
 
-          /* 최대 너비를 제한해서 이전보다 약 15% 정도 축소 */
+          /* 이전보다 약 15% 축소 + 가운데 정렬 */
           max-width: 280px;
           margin: 0 auto;
         }
@@ -92,7 +92,7 @@ export default function WordCardsGrid({ cards, onCardClick }) {
         .image-wrap {
           position: relative;
           width: 100%;
-          padding-top: 100%; /* 1:1 정사각형 비율 */
+          padding-top: 100%; /* 1:1 비율 */
         }
 
         .image-fallback {
