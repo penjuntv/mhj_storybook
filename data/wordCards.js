@@ -1,11 +1,11 @@
 // data/wordCards.js
-
-// Supabase 스토리지의 기본 URL
-// 예: https://xxxx.supabase.co/storage/v1/object/public/word-images/default_en
+// Supabase 이미지 베이스 URL
 const SUPABASE_WORD_IMAGES_BASE =
   `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/word-images/default_en`;
 
-// 알파벳 카드(큰 A, B, C …) 이미지 URL
+// -------------------------------------------------------------
+// 1) 알파벳 이미지 (A.png, B.png...)
+// -------------------------------------------------------------
 export const LETTER_IMAGES = {
   A: `${SUPABASE_WORD_IMAGES_BASE}/A/A.png`,
   B: `${SUPABASE_WORD_IMAGES_BASE}/B/B.png`,
@@ -35,222 +35,36 @@ export const LETTER_IMAGES = {
   Z: `${SUPABASE_WORD_IMAGES_BASE}/Z/Z.png`,
 };
 
-// 단어 카드 helper
-const makeCards = (letter, ids) =>
-  ids.map((id) => ({
-    id,
-    imageUrl: `${SUPABASE_WORD_IMAGES_BASE}/${letter}/${id}.png`,
-  }));
-
-// 알파벳별 단어 카드 목록
-// id는 실제 파일 이름(확장자 제외)와 반드시 같아야 합니다.
+// -------------------------------------------------------------
+// 2) 단어 카드 데이터 (Supabase 파일명과 반드시 1:1 매칭)
+// -------------------------------------------------------------
 export const WORD_CARDS = {
-  A: makeCards("A", [
-    "A_airplane",
-    "A_Alligator",
-    "A_angry",
-    "A_ant",
-    "A_apple",
-    "A_Astronaut",
-  ]),
-  B: makeCards("B", [
-    "B_Ball",
-    "B_Balloon",
-    "B_Banana",
-    "B_Bear",
-    "B_Bee",
-    "B_Book",
-  ]),
-  C: makeCards("C", [
-    "C_Cake",
-    "C_camera",
-    "C_Car",
-    "C_Cat",
-    "C_Cloud",
-    "C_Cup",
-  ]),
-  D: makeCards("D", [
-    "D_Desk",
-    "D_Dog",
-    "D_Doll 2",
-    "D_Dolphin",
-    "D_Door",
-    "D_Duck",
-  ]),
-  E: makeCards("E", [
-    "E_Ear",
-    "E_Earth",
-    "E_Egg",
-    "E_Eight",
-    "E_Elephant",
-    "E_Eye",
-  ]),
-  F: makeCards("F", [
-    "F_Fire",
-    "F_Fish",
-    "F_Flower",
-    "F_Foot",
-    "F_Frog",
-    "F_Fruit",
-  ]),
-  G: makeCards("G", [
-    "G_Game",
-    "G_Ghost",
-    "G_Gift",
-    "G_Giraffe",
-    "G_Grape",
-    "G_Guitar",
-  ]),
-  H: makeCards("H", [
-    "H_Hat",
-    "H_Heart",
-    "H_Helicopter",
-    "H_Horse",
-    "H_House",
-    "H_Hug",
-  ]),
-  I: makeCards("I", [
-    "I_Ice",
-    "I_Icecream",
-    "I_idea",
-    "I_Insect",
-    "I_Iron",
-    "I_Island",
-  ]),
-  J: makeCards("J", [
-    "J_Jacket",
-    "J_Jam",
-    "J_Jar",
-    "J_Jelly",
-    "J_Juice",
-    "J_Jump",
-  ]),
-  K: makeCards("K", [
-    "K_Key",
-    "K_King",
-    "K_Kitchen",
-    "K_Kite",
-    "K_Kitten",
-    "K_Knee",
-  ]),
-  L: makeCards("L", [
-    "L_Leaf",
-    "L_Lemon",
-    "L_Letter",
-    "L_Library",
-    "L_Light",
-    "L_Lion",
-  ]),
-  M: makeCards("M", [
-    "M_Milk",
-    "M_Monkey",
-    "M_Moon",
-    "M_Mountain",
-    "M_Mouse",
-    "M_Music",
-  ]),
-  N: makeCards("N", [
-    "N_Night",
-    "N_Nine",
-    "N_No",
-    "N_Nose",
-    "N_Nurse",
-    "N_nut",
-  ]),
-  O: makeCards("O", [
-    "O_Octopus",
-    "O_One",
-    "O_Onion",
-    "O_Orange",
-    "O_Otter",
-    "O_Owl",
-  ]),
-  P: makeCards("P", [
-    "P_Panda",
-    "P_Penguin",
-    "P_Piano",
-    "P_Pizza",
-    "P_Pumpkin",
-    "P_Purple",
-  ]),
-  Q: makeCards("Q", [
-    "Q_Queen",
-    "Q_Question",
-    "Q_Quiet",
-    "Q_Quilt",
-    "Q_Square",
-    "Q_Squirrel",
-  ]),
-  R: makeCards("R", [
-    "R_Rabbit",
-    "R_Rainbow",
-    "R_Ribbon",
-    "R_Robot",
-    "R_Rock",
-    "R_Rocket",
-  ]),
-  S: makeCards("S", [
-    "S_Shoe",
-    "S_Smile",
-    "S_Snake",
-    "S_Spider",
-    "S_Star",
-    "S_Sun",
-  ]),
-  T: makeCards("T", [
-    "T_Tomato",
-    "T_Train",
-    "T_Tree",
-    "T_Truck",
-    "T_Turtle",
-    "T_two",
-  ]),
-  U: makeCards("U", [
-    "U_UFO",
-    "U_Umbrella",
-    "U_Unicorn",
-    "U_Uniform",
-    "U_Universe",
-    "U_Up",
-  ]),
-  V: makeCards("V", [
-    "V_Vacuum",
-    "V_Vegetable",
-    "V_Video",
-    "V_Village",
-    "V_Violin",
-    "V_Volcano",
-  ]),
-  W: makeCards("W", [
-    "W_Water",
-    "W_Whale",
-    "W_Window",
-    "W_Winter",
-    "W_Witch",
-    "W_Wolf",
-  ]),
-  X: makeCards("X", [
-    "X_Box",
-    "X_Fox",
-    "X_Six",
-    "X_X-mas",
-    "X_X-ray",
-    "X_Xylophone",
-  ]),
-  Y: makeCards("Y", [
-    "Y_Yacht",
-    "Y_Yarn",
-    "Y_Yawn",
-    "Y_Yellow",
-    "Y_Yogurt",
-    "Y_Yoyo",
-  ]),
-  Z: makeCards("Z", [
-    "Z_Puzzle",
-    "Z_Zebra",
-    "Z_Zero",
-    "Z_Zigzag",
-    "Z_Zipper",
-    "Z_Zoo",
-  ]),
+  A: [
+    { id: "A_airplane" },
+    { id: "A_Alligator" },
+    { id: "A_angry" },
+    { id: "A_ant" },
+    { id: "A_apple" },
+    { id: "A_Astronaut" },
+  ],
+
+  E: [
+    { id: "E_ear" },
+    { id: "E_earth" },
+    { id: "E_egg" },
+    { id: "E_eight" },
+    { id: "E_elephant" },
+    { id: "E_eye" },
+  ],
+
+  G: [
+    { id: "G_game" },
+    { id: "G_ghost" },
+    { id: "G_gift" },
+    { id: "G_giraffe" },
+    { id: "G_grape" },
+    { id: "G_guitar" },
+  ],
+
+  // 필요한 나머지 알파벳도 계속 같은 방식으로 채우면 됨
 };
