@@ -4,7 +4,7 @@ import { supabase } from "../lib/supabaseClient";
 
 // Supabase 스토리지 설정
 const BUCKET_NAME = "word-images";
-const BASE_FOLDER = "default_en"; // word-images/default_en/<Letter>/ 파일 구조를 기본 가정
+const BASE_FOLDER = "default_en"; // word-images/default_en/<Letter>/ 파일 구조
 
 // UI용 상수
 const LETTERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("");
@@ -140,30 +140,31 @@ export default function HomePage() {
 
   const t = UI_TEXT[language] || UI_TEXT.ko;
 
-  // 1) Supabase에서 특정 알파벳 폴더의 이미지 목록 가져오기
+  // -------- 1) Supabase에서 특정 알파벳 폴더의 이미지 목록 가져오기 --------
   useEffect(() => {
     let isCancelled = false;
 
     async function loadCards() {
       setIsLoadingCards(true);
       setCardsError("");
-      try {
-        // 경로 후보들을 순서대로 시도 (실제 버킷 구조에 맞는 첫 번째 성공 경로 사용)
-        const candidatePaths = [
-          `${BASE_FOLDER}/${selectedLetter}/`,
-          `${BASE_FOLDER}/${selectedLetter}`,
-          `${selectedLetter}/`,
-          `${selectedLetter}`,
-        ];
+      setCards([]);
 
-        let usedPath = null;
-        let files = [];
+      // 경로 후보들을 만들어 순차적으로 시도
+      const pathCandidates = [
+        `${BASE_FOLDER}/${selectedLetter}`,
+        `${BASE_FOLDER}/${selectedLetter}/`,
+        selectedLetter, // 혹시 루트 바로 아래에 있을 경우
+      ];
+
+      try {
+        let finalData = null;
+        let finalPath = null;
         let lastError = null;
 
-        for (const path of candidatePaths) {
+        for (const folderPath of pathCandidates) {
           const { data, error } = await supabase.storage
             .from(BUCKET_NAME)
-            .list(path, {
+            .list(folderPath, {
               limit: 50,
               offset: 0,
               sortBy: { column: "name", order: "asc" },
@@ -173,37 +174,44 @@ export default function HomePage() {
             lastError = error;
             continue;
           }
+
           if (data && data.length > 0) {
-            usedPath = path.replace(/\/$/, ""); // 끝의 슬래시 제거
-            files = data;
+            finalData = data;
+            finalPath = folderPath;
             break;
           }
         }
 
-        if (!usedPath) {
-          // 시도한 경로들 중 어떤 것에서도 파일을 못 찾은 경우
+        if (!finalData) {
           if (lastError) {
-            console.error("Failed to load cards:", lastError);
+            console.error("Supabase list error:", lastError);
             if (!isCancelled) {
-              setCardsError("카드를 불러오는 중 문제가 발생했습니다.");
-              setCards([]);
+              setCardsError(
+                `카드를 불러오는 중 오류가 발생했습니다: ${lastError.message}`
+              );
             }
-          } else {
-            if (!isCancelled) {
-              setCards([]);
-            }
+            return;
+          }
+          // 에러는 없지만 파일도 없는 경우
+          if (!isCancelled) {
+            setCards([]);
           }
           return;
         }
 
-        const imageFiles = files.filter((file) =>
+        // 디버깅용: 실제 사용된 경로
+        console.log(
+          "[Storybook] Loaded cards from folder:",
+          finalPath,
+          finalData
+        );
+
+        const imageFiles = finalData.filter((file) =>
           file.name.toLowerCase().match(/\.(png|jpg|jpeg|webp)$/)
         );
 
         const newCards = imageFiles.map((file) => {
-          const fullPath =
-            usedPath === "" ? file.name : `${usedPath}/${file.name}`;
-
+          const fullPath = `${finalPath}/${file.name}`;
           const { data: publicUrlData } = supabase.storage
             .from(BUCKET_NAME)
             .getPublicUrl(fullPath);
@@ -230,7 +238,9 @@ export default function HomePage() {
       } catch (err) {
         console.error("Failed to load cards", err);
         if (!isCancelled) {
-          setCardsError("카드를 불러오는 중 문제가 발생했습니다.");
+          setCardsError(
+            `카드를 불러오는 중 예상치 못한 오류가 발생했습니다: ${err.message}`
+          );
           setCards([]);
         }
       } finally {
@@ -245,13 +255,12 @@ export default function HomePage() {
     };
   }, [selectedLetter]);
 
-  // 2) 단어 칩 관리 유틸
+  // -------- 2) 단어 칩 관리 유틸 --------
   const addWordToChips = (rawWord) => {
     const word = (rawWord || "").trim();
     if (!word) return;
 
     setSelectedWords((prev) => {
-      // 이미 있는 단어면 그대로
       if (prev.some((w) => w.word.toLowerCase() === word.toLowerCase())) {
         return prev;
       }
@@ -303,7 +312,7 @@ export default function HomePage() {
     processWordInput();
   };
 
-  // 3) 장소/행동/엔딩 추천 버튼
+  // -------- 3) 장소/행동/엔딩 추천 버튼 --------
   const handlePlaceSuggestionClick = (value) => {
     setPlace(value);
   };
@@ -314,7 +323,7 @@ export default function HomePage() {
     setEnding(value);
   };
 
-  // 4) 스토리 생성 요청
+  // -------- 4) 스토리 생성 요청 --------
   const handleRequestStory = async () => {
     setStory("");
     setStoryError("");
@@ -361,7 +370,7 @@ export default function HomePage() {
     }
   };
 
-  // 간단한 스타일
+  // -------- 5) 인라인 스타일 --------
   const styles = {
     page: {
       minHeight: "100vh",
@@ -418,10 +427,11 @@ export default function HomePage() {
       lineHeight: 1.4,
     },
     alphabetRow: {
-      display: "flex",
-      flexWrap: "wrap",
+      display: "grid",
+      gridTemplateColumns: "repeat(13, 1fr)", // 13 + 13
       gap: "10px",
-      marginBottom: "8px",
+      marginBottom: "12px",
+      maxWidth: "720px",
     },
     alphabetButton: (active) => ({
       width: "40px",
@@ -432,8 +442,9 @@ export default function HomePage() {
       color: active ? "#fff" : "#7a4c25",
       boxShadow: active ? "0 0 0 2px rgba(0,0,0,0.08)" : "none",
       cursor: "pointer",
-      fontWeight: 700,
+      fontWeight: 600,
       fontSize: "16px",
+      justifySelf: "center",
     }),
     cardsGrid: {
       display: "grid",
@@ -566,10 +577,6 @@ export default function HomePage() {
 
   const selectedCount = selectedWords.length;
 
-  // 알파벳 두 줄로 나누기 (A~M, N~Z)
-  const firstRowLetters = LETTERS.slice(0, 13);
-  const secondRowLetters = LETTERS.slice(13);
-
   return (
     <div style={styles.page}>
       <main style={styles.container}>
@@ -609,21 +616,10 @@ export default function HomePage() {
           <div style={styles.stepSubtitle}>{t.step1Subtitle}</div>
 
           <div style={{ fontSize: 13, marginBottom: 6 }}>{t.pickFromCards}</div>
-          {/* 알파벳 버튼 2줄 */}
+
+          {/* 알파벳 버튼 (13 + 13) */}
           <div style={styles.alphabetRow}>
-            {firstRowLetters.map((letter) => (
-              <button
-                key={letter}
-                type="button"
-                style={styles.alphabetButton(letter === selectedLetter)}
-                onClick={() => setSelectedLetter(letter)}
-              >
-                {letter}
-              </button>
-            ))}
-          </div>
-          <div style={styles.alphabetRow}>
-            {secondRowLetters.map((letter) => (
+            {LETTERS.map((letter) => (
               <button
                 key={letter}
                 type="button"
