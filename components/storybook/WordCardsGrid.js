@@ -1,107 +1,118 @@
 // components/storybook/WordCardsGrid.js
 import React from "react";
 
-export default function WordCardsGrid({ cards, onCardClick, letter, noCardsText }) {
+function WordCardsGrid({ letter, cards, isLoading, error, onCardClick }) {
+  const title = `"${letter}" 로 시작하는 단어 카드`;
+
+  if (error) {
+    return (
+      <section style={{ marginTop: 32 }}>
+        <p style={styles.sectionTitle}>{title}</p>
+        <p style={styles.messageText}>카드를 불러오는 중 오류가 발생했습니다.</p>
+      </section>
+    );
+  }
+
+  if (isLoading) {
+    return (
+      <section style={{ marginTop: 32 }}>
+        <p style={styles.sectionTitle}>{title}</p>
+        <p style={styles.messageText}>카드를 불러오는 중입니다…</p>
+      </section>
+    );
+  }
+
   if (!cards || cards.length === 0) {
     return (
-      <div
-        style={{
-          padding: 24,
-          borderRadius: 18,
-          background: "#FFF4E6",
-          fontSize: 14,
-          color: "#8A6A46",
-          marginTop: 16,
-        }}
-      >
-        {noCardsText || "아직 이 알파벳에는 카드가 없습니다."}
-      </div>
+      <section style={{ marginTop: 32 }}>
+        <p style={styles.sectionTitle}>{title}</p>
+        <p style={styles.messageText}>아직 이 알파벳에는 카드가 없습니다.</p>
+      </section>
     );
   }
 
   return (
-    <div style={{ marginTop: 16 }}>
-      <div
-        style={{
-          fontSize: 15,
-          fontWeight: 600,
-          marginBottom: 10,
-          color: "#7A5A3A",
-        }}
-      >
-        “{letter}” 로 시작하는 단어 카드
-      </div>
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
-          gap: 20,
-        }}
-      >
+    <section style={{ marginTop: 32 }}>
+      <p style={styles.sectionTitle}>{title}</p>
+      <div style={styles.grid}>
         {cards.map((card) => (
           <button
             key={card.id}
             type="button"
-            onClick={() => onCardClick(card.word)}
-            style={{
-              border: "none",
-              padding: 0,
-              textAlign: "left",
-              cursor: "pointer",
-              background: "transparent",
-            }}
+            onClick={() => onCardClick && onCardClick(card.word)}
+            style={styles.cardButton}
           >
-            <div
-              style={{
-                borderRadius: 24,
-                background: "#FFFDF8",
-                boxShadow: "0 14px 30px rgba(0,0,0,0.06)",
-                padding: 18,
-                display: "flex",
-                flexDirection: "column",
-                alignItems: "center",
-                justifyContent: "center",
-                minHeight: 240,
-              }}
-            >
-              <div
-                style={{
-                  width: "100%",
-                  aspectRatio: "4/3",
-                  borderRadius: 18,
-                  background: "#FFF4E8",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  overflow: "hidden",
-                  marginBottom: 12,
-                }}
-              >
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={card.imageUrl}
-                  alt={card.word}
-                  style={{
-                    width: "100%",
-                    height: "100%",
-                    objectFit: "cover",
-                    display: "block",
-                  }}
-                />
-              </div>
-              <div
-                style={{
-                  fontSize: 16,
-                  fontWeight: 700,
-                  color: "#3D2A1B",
-                }}
-              >
-                {card.word}
-              </div>
+            <div style={styles.imageWrapper}>
+              <img
+                src={card.imageUrl}
+                alt={card.word}
+                style={styles.image}
+                loading="lazy"
+              />
             </div>
+            {/* 시각장애인용 숨김 텍스트 (카드에는 글씨 안 보이게 처리) */}
+            <span style={styles.visuallyHidden}>{card.word}</span>
           </button>
         ))}
       </div>
-    </div>
+    </section>
   );
 }
+
+const styles = {
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: 600,
+    color: "#5B3C23",
+    marginBottom: 16,
+  },
+  messageText: {
+    fontSize: 15,
+    color: "#8C6B4A",
+  },
+  // 3열 고정 그리드 – 카드 6개면 자연스럽게 3×2가 됨
+  grid: {
+    display: "grid",
+    gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
+    gap: 24,
+  },
+  // 카드 전체 스타일
+  cardButton: {
+    border: "none",
+    padding: 0,
+    margin: 0,
+    cursor: "pointer",
+    backgroundColor: "#FFF7EC",
+    borderRadius: 28,
+    boxShadow: "0 8px 20px rgba(0,0,0,0.04)",
+    display: "flex",
+    alignItems: "stretch",
+    justifyContent: "stretch",
+  },
+  // 이미지가 카드 안을 꽉 채우도록 래퍼 + 비율 고정
+  imageWrapper: {
+    width: "100%",
+    aspectRatio: "4 / 3", // 카드 비율
+    borderRadius: 28,
+    overflow: "hidden",
+  },
+  image: {
+    width: "100%",
+    height: "100%",
+    display: "block",
+    objectFit: "cover", // 카드 내부 여백 최소화
+  },
+  visuallyHidden: {
+    position: "absolute",
+    width: 1,
+    height: 1,
+    padding: 0,
+    margin: -1,
+    overflow: "hidden",
+    clip: "rect(0, 0, 0, 0)",
+    whiteSpace: "nowrap",
+    border: 0,
+  },
+};
+
+export default WordCardsGrid;
