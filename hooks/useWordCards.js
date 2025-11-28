@@ -1,5 +1,5 @@
 // hooks/useWordCards.js
-// Supabase에 올려 둔 카드 이미지를 사용해서
+// Supabase에 올려 둔 카드 이미지를 사용하는 훅
 // 선택된 알파벳에 해당하는 단어 카드 목록을 만들어 주는 커스텀 훅
 
 import { useMemo } from "react";
@@ -16,43 +16,51 @@ function idToWord(id) {
 }
 
 // Supabase public URL 생성
-// 예: {NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/word-images/default_en/A/A_airplane.png
+// 예: https://...supabase.co/storage/v1/object/public/word-images/default_en/A/A_airplane.png
 function buildImageUrl(letter, id) {
   const baseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  if (!baseUrl) return "";
+  if (!baseUrl) {
+    // 빌드/브라우저 콘솔에 한 번만 경고 남기고 빈 문자열 반환
+    if (typeof window !== "undefined") {
+      console.warn(
+        "[useWordCards] NEXT_PUBLIC_SUPABASE_URL 이 설정되지 않았습니다."
+      );
+    }
+    return "";
+  }
   return `${baseUrl}/storage/v1/object/public/word-images/default_en/${letter}/${id}.png`;
 }
 
 /**
  * useWordCards
  * - selectedLetter: "A" ~ "Z"
- * - Supabase에 올려 둔 카드 이미지 경로 규칙을 이용해 imageUrl을 만들어 줌
- * - WORD_CARDS 데이터가 가지고 있는 id / imageUrl도 함께 활용
+ * - WORD_CARDS 데이터에 카드 id / imageUrl을 합쳐서 반환
  */
 export function useWordCards(selectedLetter) {
-  const safeLetter = ALPHABETS.includes(selectedLetter)
-    ? selectedLetter
-    : "A";
+  const safeLetter = ALPHABETS.includes(selectedLetter) ? selectedLetter : "A";
 
   const cardsForLetter = useMemo(() => {
-    const list = WORD_CARDS[safeLetter] || [];
+    const rawList = (WORD_CARDS && WORD_CARDS[safeLetter]) || [];
 
-    return list.map((card) => {
-      // WORD_CARDS 안에 word가 없더라도 id에서 자동 생성
-      const word = card.word || idToWord(card.id);
+    // 디버깅용: 카드 개수 로그
+    if (typeof window !== "undefined") {
+      console.log(
+        `[useWordCards] letter=${safeLetter}, cards=${rawList.length}`
+      );
+    }
 
-      // WORD_CARDS에 imageUrl이 명시돼 있으면 우선 사용,
-      // 없으면 Supabase 경로 규칙으로 생성
-      const imageUrl = card.imageUrl || buildImageUrl(safeLetter, card.id);
+    return rawList.map((card) => {
+      const id = card.id;
+      const word = card.word || idToWord(id);
+      const imageUrl = card.imageUrl || buildImageUrl(safeLetter, id);
 
-      return {
-        ...card,
-        letter: safeLetter,
-        word,
-        imageUrl,
-      };
+      return { ...card, id, word, imageUrl };
     });
   }, [safeLetter]);
 
-  return { cardsForLetter, letter: safeLetter };
+  return {
+    cards: cardsForLetter,
+    isLoading: false,
+    error: null,
+  };
 }
