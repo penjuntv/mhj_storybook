@@ -6,7 +6,7 @@ const client = new OpenAI({
 });
 
 export default async function handler(req, res) {
-  // CORS
+  // CORS (프레이머/브라우저에서 직접 호출해도 안전하게)
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type");
@@ -24,76 +24,66 @@ export default async function handler(req, res) {
   try {
     const body = typeof req.body === "string" ? JSON.parse(req.body) : req.body;
 
-    // 새 구조: words, mustIncludeWords, kid, place, action, ending, language
     const {
       words,
       mustIncludeWords = [],
-      kid = {},
       place,
       action,
       ending,
       language,
-      idea, // 옛날 구조와의 호환: { character, place, event, ending }
+      profile,
     } = body || {};
 
-    const wordsArray = Array.isArray(words)
-      ? words
-      : Array.isArray(idea?.words)
-      ? idea.words
-      : [];
-
-    if (!Array.isArray(wordsArray) || wordsArray.length === 0) {
+    if (!Array.isArray(words) || words.length === 0) {
       res.status(400).json({ error: "words 배열이 비어 있습니다." });
       return;
     }
 
-    const safeWords = wordsArray.slice(0, 8).join(", ");
+    const safeWords = words.slice(0, 8).join(", ");
+    const mustList =
+      Array.isArray(mustIncludeWords) && mustIncludeWords.length > 0
+        ? mustIncludeWords.slice(0, 8).join(", ")
+        : "none";
 
-    // 아이 정보
-    const kidName = kid.name && String(kid.name).trim();
-    const kidAge = kid.age && String(kid.age).trim();
-    const pov = kid.pov === "I" || kid.pov === "first" ? "I" : "third";
+    const kidName = (profile?.kidName || "the child").trim();
+    const kidAge = (profile?.kidAge || "").toString().trim();
+    const pov = profile?.pov === "third" ? "third" : "first";
 
-    const characterDescription = kidName
-      ? `${kidName}${kidAge ? `, a ${kidAge}-year-old child` : ""}`
-      : "a child";
-
-    // 장소/이벤트/엔딩 (새 구조 > 옛 구조 순으로 fallback)
-    const resolvedPlace = place || idea?.place || "a special place";
-    const resolvedEvent =
-      action || idea?.event || "has a small, gentle adventure";
-    const resolvedEnding =
-      ending || idea?.ending || "everything ends in a warm, happy way";
-
-    const targetLanguage = language || "en";
+    const ageLine = kidAge ? `The child is about ${kidAge} years old.` : "";
+    const placeLine = place ? `Place: ${place}` : "Place: a simple friendly place";
+    const actionLine = action
+      ? `What happens: ${action}`
+      : "What happens: the child has a small adventure.";
+    const endingLine = ending
+      ? `How it ends: ${ending}`
+      : "How it ends: everything is warm and happy.";
 
     const povInstruction =
-      pov === "I"
-        ? `Tell the story in the first person, using "I" as the main character.`
-        : `Tell the story about the child in third person, using "he/she/they".`;
+      pov === "first"
+        ? `Write the story in FIRST PERSON, so the main character says "I". Use the child's name "${kidName}" only when natural.`
+        : `Write the story in THIRD PERSON about a child named "${kidName}".`;
 
     const userPrompt = `
 Today's English words: ${safeWords}
-Words that must appear in the story if possible: ${
-      mustIncludeWords.length ? mustIncludeWords.join(", ") : "(none explicitly)"
-    }
+Words that must appear if natural: ${mustList}
 
-Child:
-- Main character: ${characterDescription}
-- Story language code (from client): ${targetLanguage}
+${placeLine}
+${actionLine}
+${endingLine}
+${ageLine}
 
-Story idea:
-- Place: ${resolvedPlace}
-- What happens: ${resolvedEvent}
-- How it ends: ${resolvedEnding}
+${povInstruction}
 
-Requirements:
-- ${povInstruction}
-- Very simple English (A1~A2 level) for 3–7 year old ESL learners.
-- Use as many of the words as natural, especially the "must include" words.
+Audience:
+- Young ESL learner, around 3–7 years old.
+- Very simple English (A1–A2).
 - 1–3 short sentences per line.
 - Short overall length, like a one-page picture book.
-- Do NOT add translations unless it is extremely short and natural.
+
+Requirements:
+- Use as many of the words as natural.
+- Keep grammar and vocabulary easy.
+- The story must feel warm, safe, and child-friendly.
     `.trim();
 
     const completion = await client.chat.completions.create({
@@ -102,12 +92,12 @@ Requirements:
         {
           role: "system",
           content:
-            "You are an expert children's storyteller. Write warm, safe stories in very simple English for 3–7 year old ESL learners. Use very short, clear sentences and gentle situations only.",
+            "You are an expert children's storyteller. Write warm, safe stories in very simple English for 3–7 year old ESL learners. Use short, clear sentences. Avoid difficult grammar.",
         },
         { role: "user", content: userPrompt },
       ],
       temperature: 0.7,
-      max_tokens: 500,
+      max_tokens: 600,
     });
 
     const story =
