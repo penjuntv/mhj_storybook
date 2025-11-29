@@ -1,86 +1,31 @@
-// components/storybook/WordCardsGrid.js
-// STEP 1: 선택된 알파벳에 대한 단어 카드 6장 (3 x 2) 그리드
+// components/storybook/AlphabetPicker.js
+// 알파벳 버튼 선택 컴포넌트 (A ~ Z)
+// props: selectedLetter, onSelectLetter (pages/index.js 에서 이미 사용 중인 이름 유지)
 
-export default function WordCardsGrid({
-  cards,
-  isLoading,
-  error,
-  onSelectWord,
-  emptyMessage,
-}) {
-  const safeCards = Array.isArray(cards) ? cards : [];
+const LETTERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("");
 
-  if (isLoading) {
-    return (
-      <div className="word-grid-empty">
-        카드를 불러오는 중입니다...
-      </div>
-    );
-  }
+export default function AlphabetPicker({ selectedLetter, onSelectLetter }) {
+  const upperSelected = (selectedLetter || "A").toString().toUpperCase();
+  const activeLetter = LETTERS.includes(upperSelected) ? upperSelected : "A";
 
-  if (error) {
-    return (
-      <div className="word-grid-empty">
-        단어 카드를 불러오는 중 오류가 발생했습니다.
-      </div>
-    );
-  }
-
-  if (safeCards.length === 0) {
-    return (
-      <div className="word-grid-empty">
-        {emptyMessage || "아직 이 알파벳에는 카드가 없습니다."}
-      </div>
-    );
-  }
-
-  // 3 x 2 레이아웃을 위해 최대 6장만 사용
-  const visibleCards = safeCards.slice(0, 6);
+  const handleClick = (letter) => {
+    if (typeof onSelectLetter === "function") {
+      onSelectLetter(letter);
+    }
+  };
 
   return (
-    <div className="word-grid">
-      {visibleCards.map((card) => {
-        if (!card) return null;
-
-        const id =
-          card.id ??
-          card.word ??
-          card.en ??
-          Math.random().toString(36);
-        const label =
-          card.word || card.en || card.text || card.label || "Word";
-        const imageUrl =
-          card.imageUrl ||
-          card.imageURL ||
-          card.image ||
-          card.url ||
-          "";
-
+    <div className="alphabet-picker">
+      {LETTERS.map((letter) => {
+        const isActive = letter === activeLetter;
         return (
           <button
-            key={id}
+            key={letter}
             type="button"
-            className="word-card"
-            onClick={() => {
-              if (typeof onSelectWord === "function") {
-                onSelectWord(label);
-              }
-            }}
+            className={`alphabet-button${isActive ? " active" : ""}`}
+            onClick={() => handleClick(letter)}
           >
-            <div className="word-card-inner">
-              <div className="word-card-image-wrapper">
-                {imageUrl ? (
-                  <img
-                    src={imageUrl}
-                    alt={label}
-                    className="word-card-image"
-                  />
-                ) : (
-                  <div className="word-card-image placeholder" />
-                )}
-              </div>
-              <div className="word-card-label">{label}</div>
-            </div>
+            {letter}
           </button>
         );
       })}
