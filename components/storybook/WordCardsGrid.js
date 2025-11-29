@@ -45,12 +45,13 @@ export default function WordCardsGrid({
       {visibleCards.map((card) => {
         if (!card) return null;
 
-        const id =
-          card.id ?? card.word ?? card.en ?? Math.random().toString(36);
         const label =
           card.word || card.en || card.text || card.label || "Word";
         const imageUrl =
           card.imageUrl || card.imageURL || card.image || card.url || "";
+
+        // SSR에서도 항상 동일하게 나오는 결정적 key
+        const id = String(card.id || label);
 
         return (
           <button
