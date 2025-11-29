@@ -1,51 +1,80 @@
 // hooks/useWordCards.js
 // 선택된 알파벳의 단어 카드 목록을 반환하는 훅
-// data/wordCards.js 에 정의된 원본 데이터를 최대한 그대로 사용하면서,
-// id / word / imageUrl 정도만 안전하게 보정한다.
+// data/wordCards.js 에서 카드 메타 정보를 가져오고,
+// imageUrl 이 없으면 Supabase 경로로 직접 만들어서 채운다.
 
 import { useMemo } from "react";
 import { WORD_CARDS } from "../data/wordCards";
 
 const ALPHABETS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("");
 
+// id: "A_airplane" -> "Airplane"
+function idToWord(id) {
+  if (!id) return "";
+  const parts = String(id).split("_").slice(1);
+  if (!parts.length) return "";
+  const raw = parts.join(" ");
+  return raw.charAt(0).toUpperCase() + raw.slice(1);
+}
+
+// "E_ear" 같은 형태가 word 에 들어온 경우도 정리
+function cleanupWord(letter, rawWord, rawId) {
+  let word = rawWord;
+
+  if (!word && rawId) {
+    word = idToWord(rawId);
+  }
+
+  // "E_ear" 처럼 알파벳 + "_" 로 시작하면 뒷부분만 단어로 사용
+  if (word && /^[A-Z]_/.test(word)) {
+    const parts = String(word).split("_").slice(1);
+    const base = parts.join(" ");
+    if (base) {
+      word = base.charAt(0).toUpperCase() + base.slice(1);
+    }
+  }
+
+  return word || "";
+}
+
+// Supabase 이미지 URL 생성
+function buildImageUrl(letter, id) {
+  const baseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  if (!baseUrl || !letter || !id) return "";
+
+  // 예: https://.../storage/v1/object/public/word-images/default_en/A/A_airplane.png
+  return `${baseUrl}/storage/v1/object/public/word-images/default_en/${letter}/${id}.png`;
+}
+
 export default function useWordCards(selectedLetter) {
   const upperLetter = (selectedLetter || "A").toString().toUpperCase();
   const safeLetter = ALPHABETS.includes(upperLetter) ? upperLetter : "A";
 
   const cardsForLetter = useMemo(() => {
-    const rawList = WORD_CARDS?.[safeLetter];
+    const rawList = (WORD_CARDS && WORD_CARDS[safeLetter]) || [];
 
-    if (!Array.isArray(rawList)) return [];
+    return rawList.map((card) => {
+      const rawId = card.id || card.imageId || null;
 
-    return rawList
-      .filter(Boolean)
-      .map((card, idx) => {
-        const id =
-          card.id ??
-          card.word ??
-          card.en ??
-          `${safeLetter}_${idx}_${Math.random().toString(36).slice(2, 8)}`;
+      let id = rawId;
+      let word = cleanupWord(safeLetter, card.word, rawId);
 
-        const word =
-          card.word || card.en || card.label || card.text || String(id);
+      // id 가 없고 word 만 있을 때: LETTER_word 형태로 id 만들어 주기
+      if (!id && word) {
+        const slug = word.toLowerCase().replace(/\s+/g, "");
+        id = `${safeLetter}_${slug}`;
+      }
 
-        // 데이터에 있을 수 있는 모든 이미지 필드 + 마지막에 Supabase URL fallback
-        const baseImage =
-          card.imageURL || card.imageUrl || card.image || card.url || "";
+      const imageUrl =
+        card.imageUrl || card.imageURL || buildImageUrl(safeLetter, id);
 
-        let imageUrl = baseImage;
-        if (!imageUrl && process.env.NEXT_PUBLIC_SUPABASE_URL) {
-          const baseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-          imageUrl = `${baseUrl}/storage/v1/object/public/word-images/default_en/${safeLetter}/${id}.png`;
-        }
-
-        return {
-          ...card,
-          id,
-          word,
-          imageUrl,
-        };
-      });
+      return {
+        ...card,
+        id,
+        word,
+        imageUrl,
+      };
+    });
   }, [safeLetter]);
 
   return {
