@@ -1,5 +1,4 @@
 /* ===== 리셋 & 기본 설정 ===== */
-
 *,
 *::before,
 *::after {
@@ -10,226 +9,219 @@ html,
 body {
   margin: 0;
   padding: 0;
-  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo",
-    "Segoe UI", sans-serif;
-  background: #ffeeda;
-  color: #4a311f;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Pretendard",
+    "Noto Sans KR", sans-serif;
+  background: #fff7ec;
+  color: #4a3424;
 }
 
-#__next {
-  min-height: 100vh;
+body {
+  -webkit-font-smoothing: antialiased;
 }
 
 /* ===== 페이지 레이아웃 ===== */
 
 .page-root {
-  max-width: 1200px;
-  margin: 0 auto;
-  padding: 40px 24px 80px;
+  min-height: 100vh;
+  padding: 40px 16px 80px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
 }
 
-/* 상단 제목 + 언어 스위치 */
-
 .page-header {
+  width: 100%;
+  max-width: 1200px;
+  margin-bottom: 24px;
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 32px;
 }
 
 .page-header h1 {
   margin: 0;
-  font-size: 1.8rem;
-  font-weight: 700;
+  font-size: 1.9rem;
+  font-weight: 800;
   letter-spacing: 0.02em;
 }
+
+/* 언어 스위치 */
 
 .lang-switch {
   display: inline-flex;
   gap: 8px;
+  padding: 4px;
+  background: #ffe7cc;
+  border-radius: 999px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
 }
 
 .lang-switch button {
-  min-width: 44px;
-  padding: 8px 12px;
-  border-radius: 999px;
   border: none;
-  background: #ffeede;
-  color: #7b4a2a;
-  font-weight: 600;
+  background: transparent;
+  border-radius: 999px;
+  padding: 6px 14px;
+  font-size: 0.85rem;
   cursor: pointer;
-  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.04);
-  transition: background-color 0.12s ease, color 0.12s ease,
-    box-shadow 0.12s ease, transform 0.08s ease;
+  color: #a36a3a;
 }
 
 .lang-switch button.active {
-  background: #f68c3c;
-  color: #ffffff;
-  box-shadow: 0 6px 14px rgba(246, 140, 60, 0.35);
-  transform: translateY(-1px);
+  background: #f58232;
+  color: #fff;
 }
 
-/* ===== 공통 섹션 카드 ===== */
+/* ===== 공통 STEP 컨테이너 ===== */
 
 .step-section {
-  background: #ffe4c5;
-  border-radius: 36px;
+  width: 100%;
+  max-width: 1200px;
+  background: #ffe4c2;
+  border-radius: 32px;
   padding: 32px 32px 40px;
-  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.04);
   margin-bottom: 32px;
+  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.08);
 }
 
 .step-section h2 {
-  margin: 0 0 8px;
-  font-size: 1.4rem;
-  font-weight: 700;
+  margin: 0 0 10px;
+  font-size: 1.6rem;
+  font-weight: 800;
 }
 
 .step-section p {
   margin: 0 0 16px;
   font-size: 0.98rem;
-  line-height: 1.5;
+  color: #7a5a3b;
 }
 
-/* ===== 알파벳 선택 (26개, 위아래 13개씩) ===== */
+/* =========================
+   STEP 1 - 알파벳 + 카드 그리드
+   ========================= */
+
+/* 알파벳 버튼 – 가운데 정렬 */
 
 .alphabet-picker {
-  display: grid;
-  grid-template-columns: repeat(13, 40px);
-  gap: 12px 12px;
-  margin: 24px 0 16px;
+  margin: 18px auto 26px;
+  max-width: 720px;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center; /* 가운데 정렬 */
+  gap: 14px 18px;
 }
 
 .alphabet-button {
-  width: 40px;
-  height: 40px;
-  border-radius: 999px;
+  width: 46px;
+  height: 46px;
+  border-radius: 50%;
   border: none;
-  background: #fff7ec;
-  color: #5b3b25;
-  font-weight: 600;
-  font-size: 0.95rem;
-  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.04);
+  background: #fff8f1;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.08);
+  font-size: 1rem;
+  font-weight: 700;
+  color: #6b4b2e;
   cursor: pointer;
-  transition: transform 0.1s ease, box-shadow 0.1s ease,
-    background-color 0.1s ease;
+  transition: transform 0.12s ease, box-shadow 0.12s ease, background 0.12s ease,
+    color 0.12s ease;
 }
 
 .alphabet-button:hover {
   transform: translateY(-1px);
-  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.08);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.12);
 }
 
 .alphabet-button.active {
-  background: #f68c3c;
-  color: #ffffff;
-  box-shadow: 0 6px 14px rgba(246, 140, 60, 0.35);
+  background: #f58232;
+  color: #fff;
+  box-shadow: 0 10px 24px rgba(245, 130, 50, 0.45);
 }
 
-.alphabet-button:focus-visible {
-  outline: 2px solid #f7a24a;
-  outline-offset: 2px;
-}
+/* 카드 그리드 – 3 x 2, 살짝 축소 */
 
-/* 모바일에서 알파벳 버튼이 너무 꽉 차지 않도록 */
-
-@media (max-width: 768px) {
-  .page-root {
-    padding: 24px 16px 40px;
-  }
-
-  .step-section {
-    padding: 24px 20px 32px;
-    border-radius: 28px;
-  }
-
-  .alphabet-picker {
-    grid-template-columns: repeat(8, 1fr);
-    justify-items: center;
-  }
-
-  .alphabet-button {
-    width: 38px;
-    height: 38px;
-  }
-}
-
-/* ===== STEP 1 – 단어 카드 그리드 ===== */
-
-/* 3 x 2 그리드, 카드가 영역을 넘치지 않도록 정렬 */
 .word-grid {
+  margin-top: 26px;
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 24px;
-  margin-top: 24px;
+  gap: 26px;
 }
 
-/* 카드 버튼 자체 */
 .word-card {
-  background: #fce4c6;
-  border-radius: 32px;
   border: none;
-  padding: 20px;
+  background: transparent;
+  padding: 0;
   cursor: pointer;
-  box-shadow: 0 10px 26px rgba(0, 0, 0, 0.06);
+}
+
+.word-card-inner {
+  background: #fee7c9;
+  border-radius: 30px;
+  padding: 18px 18px 20px;
+  box-shadow: 0 14px 32px rgba(0, 0, 0, 0.08);
   display: flex;
+  flex-direction: column;
   align-items: center;
-  justify-content: center;
-  transition: transform 0.1s ease, box-shadow 0.1s ease;
+  /* 전체 카드 크기를 약 15% 정도 줄이는 느낌 */
+  transform: scale(0.86);
+  transform-origin: center top;
 }
 
-.word-card:hover {
-  transform: translateY(-3px);
-  box-shadow: 0 16px 32px rgba(0, 0, 0, 0.08);
-}
-
-.word-card:focus-visible {
+/* 카드 focus 표시 (키보드 접근성) */
+.word-card:focus-visible .word-card-inner {
   outline: 2px solid #f7a24a;
-  outline-offset: 3px;
+  outline-offset: 4px;
 }
 
-/* 카드 안 이미지 영역 – 안쪽 여백으로 잘림 방지 */
+/* 이미지 영역 – 비율 유지 + 여백 확보 */
+
 .word-card-image-wrapper {
   width: 100%;
+  max-width: 320px; /* 너무 커지지 않도록 상한 */
   aspect-ratio: 4 / 5;
-  border-radius: 28px;
+  border-radius: 24px;
   overflow: hidden;
-  padding: 6%;              /* 여기 여백으로 이미지가 살짝 안쪽에 위치 */
-  box-sizing: border-box;
-  background: #ffeacb;
+  background: #ffeeda;
+  margin-bottom: 14px;
 }
 
-/* 실제 그림 – contain으로 훼손 방지 */
 .word-card-image {
   width: 100%;
   height: 100%;
   display: block;
-  object-fit: contain;       /* 중요: 그림이 잘리지 않고 전체가 보이게 */
+  object-fit: contain; /* 잘리지 않고 여백 조금 남도록 */
 }
 
-/* 카드가 없을 때 문구 */
+/* placeholder 일 때 */
+.word-card-image.placeholder {
+  background: repeating-linear-gradient(
+    45deg,
+    #ffeeda,
+    #ffeeda 8px,
+    #ffe2c7 8px,
+    #ffe2c7 16px
+  );
+}
+
+/* 단어 라벨 */
+
+.word-card-label {
+  margin-top: 4px;
+  font-size: 1.2rem;
+  font-weight: 800;
+  color: #4a3424;
+  text-align: center;
+}
+
+/* 카드 없음 / 로딩 문구 */
+
 .word-grid-empty {
   margin-top: 24px;
   font-size: 0.95rem;
   color: #8a6a4a;
 }
 
-/* 모바일에서 카드가 너무 작아지지 않도록 2열로 변경 */
-
-@media (max-width: 960px) {
-  .word-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-}
-
-@media (max-width: 640px) {
-  .word-grid {
-    grid-template-columns: minmax(0, 1fr);
-  }
-}
-
-/* ===== STEP 1 – 입력/칩 영역 ===== */
+/* =========================
+   STEP 1 - 단어 입력 / 칩
+   ========================= */
 
 .word-input-block {
   margin-top: 28px;
@@ -238,41 +230,47 @@ body {
 .word-input-block label {
   display: block;
   margin-bottom: 8px;
-  font-size: 0.98rem;
   font-weight: 600;
+  font-size: 0.98rem;
 }
 
 .word-input-row {
   display: flex;
-  gap: 8px;
-  margin-bottom: 8px;
+  gap: 12px;
+  align-items: center;
 }
 
 .word-input-row input[type="text"] {
   flex: 1;
-  padding: 10px 12px;
-  border-radius: 16px;
-  border: 1px solid #e1c29f;
+  border-radius: 999px;
+  border: none;
+  padding: 10px 18px;
   font-size: 0.96rem;
+  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.07) inset,
+    0 8px 22px rgba(0, 0, 0, 0.06);
+  background: #fffdf8;
 }
 
 .word-input-row button {
-  padding: 10px 16px;
-  border-radius: 16px;
+  border-radius: 999px;
   border: none;
-  background: #f68c3c;
-  color: #ffffff;
-  font-weight: 600;
+  padding: 10px 22px;
+  font-size: 0.96rem;
+  font-weight: 700;
+  background: #f58232;
+  color: #fff;
   cursor: pointer;
+  box-shadow: 0 10px 24px rgba(245, 130, 50, 0.5);
 }
 
 .chips-hint {
-  margin: 0 0 8px;
-  font-size: 0.88rem;
+  margin-top: 10px;
+  font-size: 0.9rem;
   color: #8a6a4a;
 }
 
 .chips-row {
+  margin-top: 10px;
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
@@ -281,50 +279,50 @@ body {
 .chip {
   border-radius: 999px;
   border: none;
-  padding: 6px 10px 6px 12px;
-  background: #fff7ec;
+  padding: 6px 12px;
+  background: #ffeeda;
   font-size: 0.9rem;
   cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
 }
 
 .chip.must {
-  background: #fbe0c2;
-  font-weight: 600;
+  background: #ffd399;
 }
 
 .chip-close {
-  font-size: 0.9rem;
-  opacity: 0.7;
+  margin-left: 4px;
+  font-weight: 700;
 }
 
-/* ===== STEP 2 – 스토리 옵션 ===== */
+/* =========================
+   STEP 2 - 스토리 옵션 영역
+   ========================= */
 
 .step2-story {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-  margin-top: 16px;
+  margin-top: 8px;
 }
 
 .step2-row {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
+  margin-top: 18px;
 }
 
 .input-label {
-  font-size: 0.96rem;
+  display: block;
+  margin-bottom: 6px;
   font-weight: 600;
+  font-size: 0.96rem;
 }
 
 .text-input {
-  padding: 10px 12px;
-  border-radius: 18px;
-  border: 1px solid #e1c29f;
-  font-size: 0.96rem;
+  width: 100%;
+  max-width: 420px;
+  border-radius: 999px;
+  border: none;
+  padding: 9px 16px;
+  font-size: 0.95rem;
+  box-shadow: 0 7px 18px rgba(0, 0, 0, 0.08) inset,
+    0 6px 16px rgba(0, 0, 0, 0.05);
+  background: #fffdf8;
 }
 
 .button-group {
@@ -334,76 +332,74 @@ body {
 }
 
 .theme-group {
-  flex-wrap: wrap;
+  max-width: 640px;
 }
 
 .pill-button {
   border-radius: 999px;
   border: none;
-  padding: 8px 14px;
-  background: #ffeede;
-  color: #6b4326;
+  padding: 8px 16px;
   font-size: 0.9rem;
+  background: #ffeeda;
   cursor: pointer;
-  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.04);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
 }
 
 .pill-button.active {
-  background: #f68c3c;
-  color: #ffffff;
-  box-shadow: 0 6px 14px rgba(246, 140, 60, 0.35);
+  background: #f58232;
+  color: #fff;
 }
 
-/* 스토리 요청 버튼 */
+/* STEP 2 – 요청 버튼 */
 
 .request-row {
-  margin-top: 24px;
-  margin-bottom: 20px;
+  margin-top: 26px;
+  display: flex;
+  justify-content: flex-start;
 }
 
 .request-row button {
-  padding: 14px 32px;
   border-radius: 999px;
   border: none;
-  background: #f68c3c;
-  color: #ffffff;
-  font-weight: 700;
+  padding: 14px 28px;
   font-size: 1rem;
+  font-weight: 700;
+  background: #f58232;
+  color: #fff;
   cursor: pointer;
-  box-shadow: 0 14px 30px rgba(246, 140, 60, 0.45);
+  box-shadow: 0 14px 36px rgba(245, 130, 50, 0.6);
 }
 
-/* ===== 결과 박스 ===== */
+/* =========================
+   STEP 2 - 결과 영역
+   ========================= */
 
 .story-result {
-  margin-top: 8px;
+  margin-top: 24px;
 }
 
-.section-title {
-  margin: 0 0 10px;
-  font-size: 1.2rem;
-  font-weight: 700;
-}
-
-.error-text {
-  margin: 0 0 8px;
-  font-size: 0.9rem;
-  color: #c73434;
+.story-result .section-title {
+  margin: 0 0 12px;
+  font-size: 1.4rem;
 }
 
 .story-box {
-  background: #fff9f0;
-  border-radius: 28px;
+  margin-top: 4px;
+  border-radius: 26px;
+  background: #fffdf8;
   padding: 18px 20px;
-  border: 1px solid #f1d1aa;
   min-height: 120px;
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.08) inset;
 }
 
 .story-text {
+  white-space: pre-wrap;
   margin: 0;
   font-family: "SF Mono", ui-monospace, Menlo, Monaco, Consolas, "Liberation Mono",
     "Courier New", monospace;
-  white-space: pre-wrap;
+  font-size: 0.95rem;
   line-height: 1.6;
 }
 
@@ -411,4 +407,54 @@ body {
   margin: 0;
   font-size: 0.95rem;
   color: #8a6a4a;
+}
+
+.error-text {
+  margin: 0 0 8px;
+  font-size: 0.92rem;
+  color: #cc3a3a;
+}
+
+/* =========================
+   반응형 (모바일)
+   ========================= */
+
+@media (max-width: 900px) {
+  .page-root {
+    padding: 24px 12px 40px;
+  }
+
+  .step-section {
+    padding: 22px 18px 26px;
+    border-radius: 22px;
+  }
+
+  .word-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .word-card-inner {
+    transform: scale(0.9);
+  }
+
+  .page-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+  }
+}
+
+@media (max-width: 600px) {
+  .word-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .alphabet-picker {
+    max-width: 100%;
+    gap: 10px 12px;
+  }
+
+  .page-header h1 {
+    font-size: 1.4rem;
+  }
 }
