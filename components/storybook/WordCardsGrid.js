@@ -42,16 +42,20 @@ export default function WordCardsGrid({
 
   return (
     <div className="word-grid">
-      {visibleCards.map((card) => {
+      {visibleCards.map((card, idx) => {
         if (!card) return null;
+
+        const id =
+          card.id ??
+          card.word ??
+          card.en ??
+          `card_${idx}_${Math.random().toString(36).slice(2, 8)}`;
 
         const label =
           card.word || card.en || card.text || card.label || "Word";
+
         const imageUrl =
           card.imageUrl || card.imageURL || card.image || card.url || "";
-
-        // SSR에서도 항상 동일하게 나오는 결정적 key
-        const id = String(card.id || label);
 
         return (
           <button
@@ -64,16 +68,19 @@ export default function WordCardsGrid({
               }
             }}
           >
-            <div className="word-card-image-wrapper">
-              {imageUrl ? (
-                <img
-                  src={imageUrl}
-                  alt={label}
-                  className="word-card-image"
-                />
-              ) : (
-                <div className="word-card-image" />
-              )}
+            <div className="word-card-inner">
+              <div className="word-card-image-wrapper">
+                {imageUrl ? (
+                  <img
+                    src={imageUrl}
+                    alt={label}
+                    className="word-card-image"
+                  />
+                ) : (
+                  <div className="word-card-image word-card-image--empty" />
+                )}
+              </div>
+              <div className="word-card-caption">{label}</div>
             </div>
           </button>
         );
