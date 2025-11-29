@@ -1,5 +1,5 @@
 // components/storybook/WordCardsGrid.js
-// STEP 1: 선택된 알파벳에 대한 단어 카드 6장 (2행 × 3열) 보여주기
+// STEP 1: 선택된 알파벳에 대한 단어 카드 그리드
 
 export default function WordCardsGrid({
   cards,
@@ -12,15 +12,15 @@ export default function WordCardsGrid({
 
   if (isLoading) {
     return (
-      <div className="wordcards-grid loading">
-        <p>Loading cards…</p>
+      <div className="wordcards-grid wordcards-grid-state">
+        <p>카드를 불러오는 중입니다...</p>
       </div>
     );
   }
 
   if (error) {
     return (
-      <div className="wordcards-grid error">
+      <div className="wordcards-grid wordcards-grid-state">
         <p>단어 카드를 불러오는 중 오류가 발생했습니다.</p>
       </div>
     );
@@ -28,13 +28,12 @@ export default function WordCardsGrid({
 
   if (safeCards.length === 0) {
     return (
-      <div className="wordcards-grid empty">
+      <div className="wordcards-grid wordcards-grid-state">
         <p>{emptyMessage || "아직 이 알파벳에는 카드가 없습니다."}</p>
       </div>
     );
   }
 
-  // 최대 6장까지만 사용 (2행 × 3열 레이아웃을 안정적으로 유지)
   const visibleCards = safeCards.slice(0, 6);
 
   return (
@@ -42,19 +41,11 @@ export default function WordCardsGrid({
       {visibleCards.map((card) => {
         if (!card) return null;
 
-        const id = card.id ?? card.word ?? card.en ?? String(Math.random());
+        const id = card.id ?? card.word ?? card.en ?? Math.random().toString();
         const label =
-          card.word ||
-          card.en ||
-          card.text ||
-          card.label ||
-          "Word";
+          card.word || card.en || card.text || card.label || "Word";
         const imageUrl =
-          card.imageUrl ||
-          card.imageURL ||
-          card.image ||
-          card.url ||
-          "";
+          card.imageUrl || card.imageURL || card.image || card.url || "";
 
         return (
           <button
