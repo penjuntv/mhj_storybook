@@ -1,106 +1,96 @@
 // components/storybook/WordCardsGrid.js
-// STEP 1용 2×3 단어 카드 그리드 (큰 그림 카드)
-// 카드 이미지는 Supabase에서 직접 불러오며, 각 카드 클릭 시 단어를 상위로 전달.
+// STEP 1: 선택된 알파벳에 대한 단어 카드 6장 (2행 × 3열) 보여주기
 
-import React from "react";
+export default function WordCardsGrid({
+  cards,
+  isLoading,
+  error,
+  selectedWords,
+  onCardClick,
+}) {
+  const safeCards = Array.isArray(cards) ? cards : [];
+  const safeSelected = Array.isArray(selectedWords) ? selectedWords : [];
 
-export default function WordCardsGrid({ cards, selectedWords, onCardClick }) {
-  const isSelected = (word) =>
-    selectedWords.some((w) => w.word.toLowerCase() === word.toLowerCase());
-
-  if (!cards || cards.length === 0) {
+  if (isLoading) {
     return (
-      <p className="empty">
-        아직 이 알파벳에는 카드가 없습니다.
-        <style jsx>{`
-          .empty {
-            margin-top: 32px;
-            font-size: 0.95rem;
-            color: #9a7b63;
-          }
-        `}</style>
-      </p>
+      <div className="wordcards-grid loading">
+        <p>Loading cards…</p>
+      </div>
     );
   }
 
+  if (error) {
+    return (
+      <div className="wordcards-grid error">
+        <p>단어 카드를 불러오는 중 오류가 발생했습니다.</p>
+      </div>
+    );
+  }
+
+  if (safeCards.length === 0) {
+    return (
+      <div className="wordcards-grid empty">
+        <p>아직 이 알파벳에는 카드가 없습니다.</p>
+      </div>
+    );
+  }
+
+  // 최대 6장까지만 사용 (2행 × 3열 레이아웃을 안정적으로 유지)
+  const visibleCards = safeCards.slice(0, 6);
+
   return (
-    <>
-      <div className="grid">
-        {cards.slice(0, 6).map((card) => (
+    <div className="wordcards-grid">
+      {visibleCards.map((card) => {
+        if (!card) return null;
+
+        const id = card.id ?? card.word ?? card.en ?? String(Math.random());
+        const label =
+          card.word ||
+          card.en ||
+          card.text ||
+          card.label ||
+          "Word";
+        const imageUrl =
+          card.imageURL ||
+          card.imageUrl ||
+          card.image ||
+          card.url ||
+          "";
+
+        // 이미 선택된 단어인지 여부 (필요하면 사용)
+        const wordLower = String(label).toLowerCase();
+        const alreadySelected = safeSelected.filter(Boolean).some((w) => {
+          const wWord =
+            typeof w === "string" ? w : w.word || w.en || "";
+          return wWord.toLowerCase() === wordLower;
+        });
+
+        return (
           <button
-            key={card.id || card.word}
+            key={id}
             type="button"
-            className={`card ${isSelected(card.word) ? "card--selected" : ""}`}
-            onClick={() => onCardClick(card.word)}
+            className={`wordcard ${alreadySelected ? "selected" : ""}`}
+            onClick={() => {
+              if (typeof onCardClick === "function") {
+                onCardClick({ ...card, word: label });
+              }
+            }}
           >
-            <div className="card-image-wrap">
-              {card.imageUrl && (
-                // eslint-disable-next-line @next/next/no-img-element
+            <div className="wordcard-inner">
+              {imageUrl ? (
                 <img
-                  src={card.imageUrl}
-                  alt={card.word}
-                  className="card-image"
+                  src={imageUrl}
+                  alt={label}
+                  className="wordcard-image"
                 />
+              ) : (
+                <div className="wordcard-image placeholder" />
               )}
+              <div className="wordcard-label">{label}</div>
             </div>
           </button>
-        ))}
-      </div>
-
-      <style jsx>{`
-        .grid {
-          margin-top: 32px;
-          display: grid;
-          grid-template-columns: repeat(3, minmax(0, 1fr));
-          gap: 24px;
-        }
-
-        .card {
-          border: none;
-          background: #fbe4c6;
-          border-radius: 28px;
-          padding: 16px;
-          cursor: pointer;
-          box-shadow: 0 14px 30px rgba(0, 0, 0, 0.09);
-          transition: transform 0.12s ease-out, box-shadow 0.12s ease-out,
-            box-shadow 0.12s ease-out;
-        }
-
-        .card-image-wrap {
-          position: relative;
-          width: 100%;
-          padding-top: 100%; /* 정사각형 */
-          border-radius: 24px;
-          overflow: hidden;
-          background: #fff8ec;
-        }
-
-        .card-image {
-          position: absolute;
-          inset: 0;
-          width: 100%;
-          height: 100%;
-          object-fit: contain;
-        }
-
-        .card--selected {
-          box-shadow: 0 0 0 4px rgba(255, 153, 102, 0.9),
-            0 16px 34px rgba(0, 0, 0, 0.14);
-          transform: translateY(-4px);
-        }
-
-        @media (max-width: 900px) {
-          .grid {
-            grid-template-columns: repeat(2, minmax(0, 1fr));
-          }
-        }
-
-        @media (max-width: 640px) {
-          .grid {
-            grid-template-columns: repeat(1, minmax(0, 1fr));
-          }
-        }
-      `}</style>
-    </>
+        );
+      })}
+    </div>
   );
 }
