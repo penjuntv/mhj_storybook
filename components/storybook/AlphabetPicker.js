@@ -3,7 +3,10 @@
 
 const LETTERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("");
 
-export default function AlphabetPicker({ selectedLetter, onChange }) {
+export default function AlphabetPicker({
+  selectedLetter,
+  onSelectLetter,
+}) {
   const safeSelected = LETTERS.includes(selectedLetter)
     ? selectedLetter
     : "A";
@@ -16,10 +19,12 @@ export default function AlphabetPicker({ selectedLetter, onChange }) {
           <button
             key={letter}
             type="button"
-            className={`alphabet-button ${isActive ? "active" : ""}`}
+            className={`alphabet-button ${
+              isActive ? "active" : ""
+            }`}
             onClick={() => {
-              if (typeof onChange === "function") {
-                onChange(letter);
+              if (typeof onSelectLetter === "function") {
+                onSelectLetter(letter);
               }
             }}
           >
