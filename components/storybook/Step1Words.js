@@ -26,7 +26,6 @@ export default function Step1Words({
         return prev;
       }
       if (prev.length >= MAX_WORDS) return prev;
-
       return [...prev, { word, mustInclude: false }];
     });
   };
@@ -49,7 +48,6 @@ export default function Step1Words({
     );
   };
 
-  // 수동 입력 처리
   const processWordInput = () => {
     const tokens = wordInput
       .split(/[,;\n]/)
@@ -98,50 +96,50 @@ export default function Step1Words({
       justifyContent: "center",
     },
     alphabetButton: (active) => ({
-      width: 36,
-      height: 36,
+      width: 46,
+      height: 46,
       borderRadius: 999,
       border: "0",
       background: active ? "#FF8C41" : "#FFF8F0",
       color: active ? "#fff" : "#7a4c25",
-      boxShadow: active ? "0 0 0 2px rgba(0,0,0,0.08)" : "none",
+      boxShadow: active ? "0 0 0 3px rgba(0,0,0,0.06)" : "none",
       cursor: "pointer",
-      fontWeight: 600,
-      fontSize: 14,
+      fontWeight: 700,
+      fontSize: 16,
     }),
     cardsGrid: {
       display: "grid",
-      gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
-      gap: 20,
-      marginTop: 12,
+      gridTemplateColumns: "repeat(3, minmax(220px, 1fr))",
+      gap: 24,
+      marginTop: 18,
       marginBottom: 20,
     },
     card: {
-      background: "#FFF9F3",
-      borderRadius: 24,
+      background: "#FEE7C9",
+      borderRadius: 30,
       padding: 18,
-      boxShadow: "0 14px 30px rgba(0,0,0,0.06)",
+      boxShadow: "0 14px 40px rgba(0,0,0,0.10)",
       cursor: "pointer",
       display: "flex",
       flexDirection: "column",
       alignItems: "center",
       justifyContent: "center",
-      minHeight: 220,
+      minHeight: 260,
     },
     cardImageWrapper: {
       width: "100%",
-      borderRadius: 20,
+      maxWidth: 320,
+      borderRadius: 24,
       background: "#FFEFD9",
       overflow: "hidden",
       display: "flex",
       alignItems: "center",
       justifyContent: "center",
-      marginBottom: 0, // 아래 텍스트를 없앨 것이므로 여백 최소화
     },
     cardImage: {
       width: "100%",
-      height: "auto",
-      objectFit: "cover",
+      height: "100%",
+      objectFit: "contain", // 이미지 잘리지 않게
       display: "block",
     },
     textarea: {
@@ -255,7 +253,7 @@ export default function Step1Words({
                   style={styles.cardImage}
                 />
               </div>
-              {/* 카드 이미지 안에 이미 스펠링이 있으므로, 아래 텍스트는 렌더링하지 않음 */}
+              {/* 아래 텍스트는 제거 – 이미지 안에 이미 단어가 들어가 있음 */}
             </button>
           ))}
         </div>
