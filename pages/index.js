@@ -37,57 +37,85 @@ export default function HomePage() {
   const [story, setStory] = useState("");
   const [storyError, setStoryError] = useState(null);
 
-  // UI 텍스트: lib/uiText.js 실제 키에 맞춰 안전하게 매핑
-  const t = getUIText(language) || {};
+  // UI 텍스트: lib/uiText.js에서 가져오되, 절대 undefined 접근이 일어나지 않도록 방어
+  const rawText = getUIText(language);
+  const t = rawText && typeof rawText === "object" ? rawText : {};
+
+  const get = (key, fallback) =>
+    t && Object.prototype.hasOwnProperty.call(t, key) && t[key] != null
+      ? t[key]
+      : fallback;
 
   const ui = {
     // STEP 1
-    pageTitle:
-      t.appTitle ||
-      "AI Storybook – 오늘 배운 단어로 영어 동화 만들기",
-    step1Title: t.step1Title || "STEP 1 · Today's words",
-    step1Description:
-      t.step1Subtitle ||
-      "오늘 수업·숙제·책에서 등장한 영어 단어를 적거나, 아래 카드에서 골라 보세요.",
-    step1InputLabel: t.writeWordsLabel || "오늘 배운 영어 단어 적기",
-    step1InputPlaceholder:
-      t.writeWordsPlaceholder ||
-      "apple, banana, mom 처럼 쉼표(,)나 줄바꿈으로 단어를 입력해 주세요.",
-    chipsHint:
-      t.chipsLabel ||
-      "Word chips (단어 칩) · 단어 칩을 클릭하면 ★ 표시가 생기며, 동화 속에 꼭 들어갔으면 하는 단어로 표시됩니다. X로 삭제할 수 있습니다.",
-    step1NoCards:
-      t.noCardsForLetter || "아직 이 알파벳에는 카드가 없습니다.",
+    pageTitle: get(
+      "appTitle",
+      "AI Storybook – 오늘 배운 단어로 영어 동화 만들기"
+    ),
+    step1Title: get("step1Title", "STEP 1 · Today's words"),
+    step1Description: get(
+      "step1Subtitle",
+      "오늘 수업·숙제·책에서 등장한 영어 단어를 적거나, 아래 카드에서 골라 보세요."
+    ),
+    step1InputLabel: get(
+      "writeWordsLabel",
+      "오늘 배운 영어 단어 적기"
+    ),
+    step1InputPlaceholder: get(
+      "writeWordsPlaceholder",
+      "apple, banana, mom 처럼 쉼표(,)나 줄바꿈으로 단어를 입력해 주세요."
+    ),
+    chipsHint: get(
+      "chipsLabel",
+      "Word chips (단어 칩) · 단어 칩을 클릭하면 ★ 표시가 생기며, 동화 속에 꼭 들어갔으면 하는 단어로 표시됩니다. X로 삭제할 수 있습니다."
+    ),
+    step1NoCards: get(
+      "noCardsForLetter",
+      "아직 이 알파벳에는 카드가 없습니다."
+    ),
 
     // STEP 2
-    step2Title: t.step2Title || "STEP 2 · AI가 만든 영어 동화",
-    step2Intro:
-      t.step2Subtitle ||
-      "아이 이름과 이야기 방식을 고르고, 동화의 테마와 길이를 선택해 주세요. 단어 2~8개를 고르면 AI가 아이 눈높이에 맞춰 동화를 만들어 줍니다.",
+    step2Title: get("step2Title", "STEP 2 · AI가 만든 영어 동화"),
+    step2Intro: get(
+      "step2Subtitle",
+      "아이 이름과 이야기 방식을 고르고, 동화의 테마와 길이를 선택해 주세요. 단어 2~8개를 고르면 AI가 아이 눈높이에 맞춰 동화를 만들어 줍니다."
+    ),
 
-    nameLabel: t.kidNameLabel || "이름 (예: Yujin)",
-    wayLabel: t.povLabel || "이야기 방식",
-    wayFirst:
-      t.povFirstPerson || "내가 이야기의 주인공 (1인칭)",
-    wayThird:
-      t.povThirdPerson || "내가 들려주는 이야기 (3인칭)",
+    nameLabel: get("kidNameLabel", "이름 (예: Yujin)"),
+    wayLabel: get("povLabel", "이야기 방식"),
+    wayFirst: get(
+      "povFirstPerson",
+      "내가 이야기의 주인공 (1인칭)"
+    ),
+    wayThird: get(
+      "povThirdPerson",
+      "내가 들려주는 이야기 (3인칭)"
+    ),
 
-    themeLabel: t.themeTitle || "이야기 테마 고르기",
-    lengthLabel: t.lengthTitle || "이야기 길이 선택",
-    lengthShort: t.lengthShort || "짧게",
-    lengthNormal: t.lengthNormal || "보통",
-    lengthLong: t.lengthLong || "길게",
+    themeLabel: get("themeTitle", "이야기 테마 고르기"),
+    lengthLabel: get("lengthTitle", "이야기 길이 선택"),
+    lengthShort: get("lengthShort", "짧게"),
+    lengthNormal: get("lengthNormal", "보통"),
+    lengthLong: get("lengthLong", "길게"),
 
-    requestButtonLabel:
-      t.askButton || "AI에게 영어 동화 만들기 요청하기",
-    loadingStory:
-      t.loadingStory || "AI가 동화를 만드는 중입니다...",
-    mustSelectWordsMsg:
-      t.mustSelectWords || "단어를 1개 이상 선택해 주세요.",
-    resultTitle:
-      t.resultTitle || "AI가 만든 오늘의 영어 동화",
-    storyTooFewWords: t.storyTooFewWords,
-    ideasTooFewWords: t.ideasTooFewWords,
+    requestButtonLabel: get(
+      "askButton",
+      "AI에게 영어 동화 만들기 요청하기"
+    ),
+    loadingStory: get(
+      "loadingStory",
+      "AI가 동화를 만드는 중입니다..."
+    ),
+    mustSelectWordsMsg: get(
+      "mustSelectWords",
+      "단어를 1개 이상 선택해 주세요."
+    ),
+    resultTitle: get(
+      "resultTitle",
+      "AI가 만든 오늘의 영어 동화"
+    ),
+    storyTooFewWords: get("storyTooFewWords", null),
+    ideasTooFewWords: get("ideasTooFewWords", null),
   };
 
   // STEP1 – 카드에서 단어 추가
