@@ -12,104 +12,11 @@ import StoryResult from "../components/storybook/StoryResult";
 
 const MAX_WORDS = 8;
 
-/**
- * getUIText가 어떤 이유로든 깨져도
- * 항상 "객체"만 돌려주게 만드는 안전 래퍼.
- * (SSR / 빌드 시점에서도 절대 TypeError가 나지 않게 하기 위함)
- */
-function safeGetUIText(language) {
-  try {
-    if (typeof getUIText === "function") {
-      const res = getUIText(language);
-      if (res && typeof res === "object") {
-        return res;
-      }
-    }
-  } catch (e) {
-    // 서버 로그에만 남기고, UI는 기본 문자열로 돌린다.
-    console.error("getUIText failed:", e);
-  }
-  return {};
-}
-
 export default function HomePage() {
-  // 언어 상태
-  const [language, setLanguage] = useState("ko"); // "en" | "ko" | "zh"
+  // 언어 상태 ("ko" | "en" | "zh" 외 값이 들어와도 getUIText 안에서 en으로 폴백)
+  const [language, setLanguage] = useState("ko");
 
-  // ---- UI 텍스트 (항상 안전한 객체 + 우리가 직접 기본값 부여) ----
-  const ui = safeGetUIText(language);
-
-  // lib/uiText.js 에 정의된 키들에 맞춰 매핑
-  const pageTitle =
-    ui.appTitle ??
-    "AI Storybook – 오늘 배운 단어로 영어 동화 만들기";
-
-  const step1Title =
-    ui.step1Title ?? "STEP 1 · Today's words";
-
-  const step1Description =
-    ui.step1Subtitle ??
-    "오늘 수업·숙제·책에서 등장한 영어 단어를 적거나, 아래 카드에서 골라 보세요.";
-
-  const step1InputLabel =
-    ui.writeWordsLabel ?? "오늘 배운 영어 단어 적기";
-
-  const step1InputPlaceholder =
-    ui.writeWordsPlaceholder ??
-    "apple, banana, mom 처럼 쉼표(,)나 줄바꿈으로 단어를 입력해 주세요.";
-
-  const chipsHintBase =
-    ui.chipsLabel ??
-    "Word chips (단어 칩) · 단어 칩을 클릭하면 ★ 표시가 생기며, 동화 속에 꼭 들어갔으면 하는 단어로 표시됩니다. X로 삭제할 수 있습니다. 0/8";
-
-  const noCardsForLetter =
-    ui.noCardsForLetter ?? "아직 이 알파벳에는 카드가 없습니다.";
-
-  const step2Title =
-    ui.step2Title ?? "STEP 2 · AI가 만든 영어 동화";
-
-  const step2Intro =
-    ui.step2Subtitle ??
-    "아이 이름과 이야기 방식을 고르고, 동화의 테마와 길이를 선택해 주세요. 단어 2~8개를 고르면 AI가 아이 눈높이에 맞춰 동화를 만들어 줍니다.";
-
-  // Step2Story 컴포넌트에 넘길 세부 라벨들
-  const step2NameLabel =
-    ui.kidNameLabel ?? "이름 (예: Yujin)";
-
-  const step2WayLabel =
-    ui.povLabel ?? "이야기 방식";
-
-  const step2WayFirst =
-    ui.povFirstPerson ?? "내가 이야기의 주인공 (1인칭)";
-
-  const step2WayThird =
-    ui.povThirdPerson ?? "내가 들려주는 이야기 (3인칭)";
-
-  const step2ThemeLabel =
-    ui.themeTitle ?? "이야기 테마 고르기";
-
-  const step2LengthLabel =
-    ui.lengthTitle ?? "이야기 길이 선택";
-
-  const step2LengthShort =
-    ui.lengthShort ?? "짧게";
-
-  const step2LengthNormal =
-    ui.lengthNormal ?? "보통";
-
-  const step2LengthLong =
-    ui.lengthLong ?? "길게";
-
-  const requestButtonLabel =
-    ui.askButton ?? "AI에게 영어 동화 만들기 요청하기";
-
-  const loadingStoryLabel =
-    ui.loadingStory ?? "AI가 동화를 만드는 중입니다...";
-
-  const mustSelectWordsMessage =
-    ui.mustSelectWords ?? "단어를 1개 이상 선택해 주세요.";
-
-  // ---- STEP1 – 알파벳 / 카드 ----
+  // STEP1 – 알파벳 / 카드
   const [selectedLetter, setSelectedLetter] = useState("A");
   const {
     cards,
@@ -117,7 +24,7 @@ export default function HomePage() {
     error: cardsError,
   } = useWordCards(selectedLetter);
 
-  // STEP1 – 오늘 배운 단어
+  // STEP1 – 오늘 배운 단어 (칩)
   const [selectedWords, setSelectedWords] = useState([]); // [{ word, mustInclude }]
   const [wordInput, setWordInput] = useState("");
 
@@ -130,13 +37,69 @@ export default function HomePage() {
   const [story, setStory] = useState("");
   const [storyError, setStoryError] = useState(null);
 
+  // UI 텍스트: lib/uiText.js 실제 키에 맞춰 안전하게 매핑
+  const t = getUIText(language) || {};
+
+  const ui = {
+    // STEP 1
+    pageTitle:
+      t.appTitle ||
+      "AI Storybook – 오늘 배운 단어로 영어 동화 만들기",
+    step1Title: t.step1Title || "STEP 1 · Today's words",
+    step1Description:
+      t.step1Subtitle ||
+      "오늘 수업·숙제·책에서 등장한 영어 단어를 적거나, 아래 카드에서 골라 보세요.",
+    step1InputLabel: t.writeWordsLabel || "오늘 배운 영어 단어 적기",
+    step1InputPlaceholder:
+      t.writeWordsPlaceholder ||
+      "apple, banana, mom 처럼 쉼표(,)나 줄바꿈으로 단어를 입력해 주세요.",
+    chipsHint:
+      t.chipsLabel ||
+      "Word chips (단어 칩) · 단어 칩을 클릭하면 ★ 표시가 생기며, 동화 속에 꼭 들어갔으면 하는 단어로 표시됩니다. X로 삭제할 수 있습니다.",
+    step1NoCards:
+      t.noCardsForLetter || "아직 이 알파벳에는 카드가 없습니다.",
+
+    // STEP 2
+    step2Title: t.step2Title || "STEP 2 · AI가 만든 영어 동화",
+    step2Intro:
+      t.step2Subtitle ||
+      "아이 이름과 이야기 방식을 고르고, 동화의 테마와 길이를 선택해 주세요. 단어 2~8개를 고르면 AI가 아이 눈높이에 맞춰 동화를 만들어 줍니다.",
+
+    nameLabel: t.kidNameLabel || "이름 (예: Yujin)",
+    wayLabel: t.povLabel || "이야기 방식",
+    wayFirst:
+      t.povFirstPerson || "내가 이야기의 주인공 (1인칭)",
+    wayThird:
+      t.povThirdPerson || "내가 들려주는 이야기 (3인칭)",
+
+    themeLabel: t.themeTitle || "이야기 테마 고르기",
+    lengthLabel: t.lengthTitle || "이야기 길이 선택",
+    lengthShort: t.lengthShort || "짧게",
+    lengthNormal: t.lengthNormal || "보통",
+    lengthLong: t.lengthLong || "길게",
+
+    requestButtonLabel:
+      t.askButton || "AI에게 영어 동화 만들기 요청하기",
+    loadingStory:
+      t.loadingStory || "AI가 동화를 만드는 중입니다...",
+    mustSelectWordsMsg:
+      t.mustSelectWords || "단어를 1개 이상 선택해 주세요.",
+    resultTitle:
+      t.resultTitle || "AI가 만든 오늘의 영어 동화",
+    storyTooFewWords: t.storyTooFewWords,
+    ideasTooFewWords: t.ideasTooFewWords,
+  };
+
   // STEP1 – 카드에서 단어 추가
   const handleSelectCardWord = (word) => {
     if (!word) return;
     if (selectedWords.length >= MAX_WORDS) return;
     if (selectedWords.some((w) => w.word === word)) return;
 
-    setSelectedWords((prev) => [...prev, { word, mustInclude: false }]);
+    setSelectedWords((prev) => [
+      ...prev,
+      { word, mustInclude: false },
+    ]);
   };
 
   // STEP1 – 입력 창에서 단어 추가
@@ -151,7 +114,9 @@ export default function HomePage() {
     if (!rawWords.length) return;
 
     setSelectedWords((prev) => {
-      const exist = new Set(prev.map((w) => w.word.toLowerCase()));
+      const exist = new Set(
+        prev.map((w) => w.word.toLowerCase())
+      );
       const next = [...prev];
 
       for (const w of rawWords) {
@@ -172,34 +137,42 @@ export default function HomePage() {
   const toggleMustInclude = (word) => {
     setSelectedWords((prev) =>
       prev.map((w) =>
-        w.word === word ? { ...w, mustInclude: !w.mustInclude } : w
+        w.word === word
+          ? { ...w, mustInclude: !w.mustInclude }
+          : w
       )
     );
   };
 
   // STEP1 – 칩 삭제
   const removeWordChip = (word) => {
-    setSelectedWords((prev) => prev.filter((w) => w.word !== word));
+    setSelectedWords((prev) =>
+      prev.filter((w) => w.word !== word)
+    );
   };
 
   // STEP2 – 테마 토글
   const toggleTheme = (id) => {
     setThemeId((prev) =>
-      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
+      prev.includes(id)
+        ? prev.filter((x) => x !== id)
+        : [...prev, id]
     );
   };
 
-  // STEP2 – 동화 요청
+  // STEP2 – 동화 요청(현재는 더미 스토리)
   async function handleRequestStory() {
     setStory("");
     setStoryError(null);
 
     const coreWords = selectedWords
-      .map((w) => (typeof w === "string" ? w : w.word))
+      .map((w) =>
+        typeof w === "string" ? w : w.word
+      )
       .filter(Boolean);
 
     if (!coreWords.length) {
-      setStoryError(mustSelectWordsMessage);
+      setStoryError(ui.mustSelectWordsMsg);
       return;
     }
 
@@ -217,16 +190,20 @@ export default function HomePage() {
           .map((w) => w.word),
       };
 
-      // TODO: 실제 API 연동 부분
+      // TODO: 실제 API 연동 자리
       const fakeStory = `
-Once upon a time, ${payload.kidName || "a little child"} went on an adventure
-with words like ${payload.words.join(", ")}.
+Once upon a time, ${
+        payload.kidName || "a little child"
+      } went on an adventure
+with words like ${payload.words.join(", ")}. (demo text)
       `.trim();
 
       setStory(fakeStory);
     } catch (err) {
       console.error(err);
-      setStoryError("동화를 만드는 중 문제가 발생했습니다.");
+      setStoryError(
+        "동화를 만드는 중 문제가 발생했습니다."
+      );
     } finally {
       setIsRequesting(false);
     }
@@ -240,26 +217,23 @@ with words like ${payload.words.join(", ")}.
   return (
     <div className="page-root">
       <header className="page-header">
-        <h1>{pageTitle}</h1>
+        <h1>{ui.pageTitle}</h1>
         <div className="lang-switch">
           <button
             className={language === "en" ? "active" : ""}
             onClick={() => handleLanguageChange("en")}
-            type="button"
           >
             EN
           </button>
           <button
             className={language === "ko" ? "active" : ""}
             onClick={() => handleLanguageChange("ko")}
-            type="button"
           >
             KO
           </button>
           <button
             className={language === "zh" ? "active" : ""}
             onClick={() => handleLanguageChange("zh")}
-            type="button"
           >
             中文
           </button>
@@ -268,8 +242,8 @@ with words like ${payload.words.join(", ")}.
 
       {/* STEP 1 */}
       <section className="step-section step1">
-        <h2>{step1Title}</h2>
-        <p>{step1Description}</p>
+        <h2>{ui.step1Title}</h2>
+        <p>{ui.step1Description}</p>
 
         <AlphabetPicker
           selectedLetter={selectedLetter}
@@ -281,25 +255,30 @@ with words like ${payload.words.join(", ")}.
           isLoading={cardsLoading}
           error={cardsError}
           onSelectWord={handleSelectCardWord}
-          emptyMessage={noCardsForLetter}
+          emptyMessage={ui.step1NoCards}
         />
 
         <div className="word-input-block">
-          <label>{step1InputLabel}</label>
+          <label>{ui.step1InputLabel}</label>
           <div className="word-input-row">
             <input
               type="text"
               value={wordInput}
-              onChange={(e) => setWordInput(e.target.value)}
-              placeholder={step1InputPlaceholder}
+              onChange={(e) =>
+                setWordInput(e.target.value)
+              }
+              placeholder={ui.step1InputPlaceholder}
             />
-            <button type="button" onClick={handleAddWordsFromInput}>
+            <button
+              type="button"
+              onClick={handleAddWordsFromInput}
+            >
               추가
             </button>
           </div>
 
           <p className="chips-hint">
-            {chipsHintBase} {selectedWords.length}/{MAX_WORDS}
+            {ui.chipsHint} {selectedWords.length}/{MAX_WORDS}
           </p>
 
           <div className="chips-row">
@@ -307,8 +286,12 @@ with words like ${payload.words.join(", ")}.
               <button
                 key={w.word}
                 type="button"
-                className={`chip ${w.mustInclude ? "must" : ""}`}
-                onClick={() => toggleMustInclude(w.word)}
+                className={`chip ${
+                  w.mustInclude ? "must" : ""
+                }`}
+                onClick={() =>
+                  toggleMustInclude(w.word)
+                }
               >
                 {w.word}
                 {w.mustInclude && " ★"}
@@ -327,10 +310,10 @@ with words like ${payload.words.join(", ")}.
         </div>
       </section>
 
-      {/* STEP 2 – 설정 UI */}
+      {/* STEP 2 */}
       <section className="step-section step2">
-        <h2>{step2Title}</h2>
-        <p>{step2Intro}</p>
+        <h2>{ui.step2Title}</h2>
+        <p>{ui.step2Intro}</p>
 
         <Step2Story
           kidName={kidName}
@@ -342,15 +325,15 @@ with words like ${payload.words.join(", ")}.
           length={length}
           onChangeLength={setLength}
           texts={{
-            nameLabel: step2NameLabel,
-            wayLabel: step2WayLabel,
-            wayFirst: step2WayFirst,
-            wayThird: step2WayThird,
-            themeLabel: step2ThemeLabel,
-            lengthLabel: step2LengthLabel,
-            lengthShort: step2LengthShort,
-            lengthNormal: step2LengthNormal,
-            lengthLong: step2LengthLong,
+            nameLabel: ui.nameLabel,
+            wayLabel: ui.wayLabel,
+            wayFirst: ui.wayFirst,
+            wayThird: ui.wayThird,
+            themeLabel: ui.themeLabel,
+            lengthLabel: ui.lengthLabel,
+            lengthShort: ui.lengthShort,
+            lengthNormal: ui.lengthNormal,
+            lengthLong: ui.lengthLong,
           }}
         />
 
@@ -360,11 +343,19 @@ with words like ${payload.words.join(", ")}.
             onClick={handleRequestStory}
             disabled={isRequesting}
           >
-            {isRequesting ? loadingStoryLabel : requestButtonLabel}
+            {isRequesting
+              ? ui.loadingStory
+              : ui.requestButtonLabel}
           </button>
         </div>
 
-        <StoryResult story={story} error={storyError} />
+        <StoryResult
+          story={story}
+          error={storyError}
+          title={ui.resultTitle}
+          warningFewWords={ui.storyTooFewWords}
+          ideasFewWords={ui.ideasTooFewWords}
+        />
       </section>
     </div>
   );
