@@ -42,17 +42,17 @@ export default function WordCardsGrid({
 
   return (
     <div className="word-grid">
-      {visibleCards.map((card, idx) => {
+      {visibleCards.map((card) => {
         if (!card) return null;
 
         const id =
           card.id ??
           card.word ??
           card.en ??
-          `card_${idx}_${Math.random().toString(36).slice(2, 8)}`;
+          Math.random().toString(36).slice(2);
 
-        const label =
-          card.word || card.en || card.text || card.label || "Word";
+        const word =
+          card.word || card.en || card.text || card.label || "";
 
         const imageUrl =
           card.imageUrl || card.imageURL || card.image || card.url || "";
@@ -64,7 +64,8 @@ export default function WordCardsGrid({
             className="word-card"
             onClick={() => {
               if (typeof onSelectWord === "function") {
-                onSelectWord(label);
+                // 칩에 들어가는 단어는 사람이 읽는 단어 (예: "Airplane")
+                onSelectWord(word);
               }
             }}
           >
@@ -73,14 +74,14 @@ export default function WordCardsGrid({
                 {imageUrl ? (
                   <img
                     src={imageUrl}
-                    alt={label}
+                    alt={word}
                     className="word-card-image"
                   />
                 ) : (
-                  <div className="word-card-image word-card-image--empty" />
+                  <div className="word-card-image placeholder" />
                 )}
               </div>
-              <div className="word-card-caption">{label}</div>
+              {/* 화면에는 스펠링을 따로 보여주지 않는다 */}
             </div>
           </button>
         );
