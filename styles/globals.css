@@ -103,10 +103,10 @@ body {
 
 .alphabet-picker {
   margin: 18px auto 26px;
-  max-width: 760px;            /* 두 줄(13+13) 나오도록 살짝 넉넉하게 */
+  max-width: 960px; /* ← 720 에서 늘려서 13개/13개 보이도록 */
   display: flex;
   flex-wrap: wrap;
-  justify-content: center;     /* 가운데 정렬 */
+  justify-content: center;
   gap: 14px 18px;
 }
 
@@ -136,16 +136,13 @@ body {
   box-shadow: 0 10px 24px rgba(245, 130, 50, 0.45);
 }
 
-/* 카드 그리드 – 3 x 2, 약간 축소 + 중앙 정렬 */
+/* 카드 그리드 – 3 x 2, 살짝 축소 */
 
 .word-grid {
   margin-top: 26px;
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 26px;
-  max-width: 1100px;     /* 카드 전체 폭 제한 */
-  margin-left: auto;
-  margin-right: auto;
 }
 
 .word-card {
@@ -163,8 +160,7 @@ body {
   display: flex;
   flex-direction: column;
   align-items: center;
-  /* 전체 카드 크기를 이전보다 조금 더 줄임 (약 20% 축소 느낌) */
-  transform: scale(0.8);
+  transform: scale(0.86);
   transform-origin: center top;
 }
 
@@ -178,7 +174,7 @@ body {
 
 .word-card-image-wrapper {
   width: 100%;
-  max-width: 280px;  /* 기존 320px → 280px로 줄여서 전체 카드 15% 정도 축소 */
+  max-width: 320px;
   aspect-ratio: 4 / 5;
   border-radius: 24px;
   overflow: hidden;
@@ -190,7 +186,7 @@ body {
   width: 100%;
   height: 100%;
   display: block;
-  object-fit: contain; /* 잘리지 않고 여백 조금 남도록 */
+  object-fit: contain;
 }
 
 /* placeholder 일 때 */
@@ -204,8 +200,7 @@ body {
   );
 }
 
-/* 단어 라벨 */
-
+/* 예전 라벨 스타일은 써먹지 않지만 남겨 두어도 무방
 .word-card-label {
   margin-top: 4px;
   font-size: 1.2rem;
@@ -213,8 +208,7 @@ body {
   color: #4a3424;
   text-align: center;
 }
-
-/* 카드 없음 / 로딩 문구 */
+*/
 
 .word-grid-empty {
   margin-top: 24px;
@@ -400,8 +394,8 @@ body {
 .story-text {
   white-space: pre-wrap;
   margin: 0;
-  font-family: "SF Mono", ui-monospace, Menlo, Monaco, Consolas,
-    "Liberation Mono", "Courier New", monospace;
+  font-family: "SF Mono", ui-monospace, Menlo, Monaco, Consolas, "Liberation Mono",
+    "Courier New", monospace;
   font-size: 0.95rem;
   line-height: 1.6;
 }
@@ -434,7 +428,6 @@ body {
 
   .word-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    max-width: 100%;
   }
 
   .word-card-inner {
@@ -450,7 +443,7 @@ body {
 
 @media (max-width: 600px) {
   .word-grid {
-    grid-template-columns: minmax(0, 1fr);
+    grid-template-columns: minmax(0, 1fr));
   }
 
   .alphabet-picker {
