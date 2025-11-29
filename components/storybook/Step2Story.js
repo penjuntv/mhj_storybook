@@ -53,18 +53,14 @@ export default function Step2Story(props) {
         <div className="button-group">
           <button
             type="button"
-            className={`pill-button ${
-              pov === "first" ? "active" : ""
-            }`}
+            className={`pill-button ${pov === "first" ? "active" : ""}`}
             onClick={() => onChangePov?.("first")}
           >
             {wayFirst}
           </button>
           <button
             type="button"
-            className={`pill-button ${
-              pov === "third" ? "active" : ""
-            }`}
+            className={`pill-button ${pov === "third" ? "active" : ""}`}
             onClick={() => onChangePov?.("third")}
           >
             {wayThird}
@@ -93,9 +89,7 @@ export default function Step2Story(props) {
               <button
                 key={theme.id}
                 type="button"
-                className={`pill-button ${
-                  active ? "active" : ""
-                }`}
+                className={`pill-button ${active ? "active" : ""}`}
                 onClick={() => onToggleTheme?.(theme.id)}
               >
                 {theme.label}
@@ -111,27 +105,21 @@ export default function Step2Story(props) {
         <div className="button-group">
           <button
             type="button"
-            className={`pill-button ${
-              length === "short" ? "active" : ""
-            }`}
+            className={`pill-button ${length === "short" ? "active" : ""}`}
             onClick={() => onChangeLength?.("short")}
           >
             {lengthShort}
           </button>
           <button
             type="button"
-            className={`pill-button ${
-              length === "normal" ? "active" : ""
-            }`}
+            className={`pill-button ${length === "normal" ? "active" : ""}`}
             onClick={() => onChangeLength?.("normal")}
           >
             {lengthNormal}
           </button>
           <button
             type="button"
-            className={`pill-button ${
-              length === "long" ? "active" : ""
-            }`}
+            className={`pill-button ${length === "long" ? "active" : ""}`}
             onClick={() => onChangeLength?.("long")}
           >
             {lengthLong}
