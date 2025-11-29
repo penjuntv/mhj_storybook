@@ -1,3 +1,321 @@
+/* =========================
+   Global base styles
+   ========================= */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  padding: 0;
+  margin: 0;
+}
+
+body {
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+    sans-serif;
+  background: #fff6eb; /* 부드러운 베이지 배경 */
+  color: #4b3425;
+}
+
+/* 링크 기본 제거 */
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+/* 페이지 루트 컨테이너 */
+.page-root {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 40px 24px 80px;
+}
+
+/* 헤더 – 제목 + 언어 스위치 */
+.page-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 32px;
+}
+
+.page-header h1 {
+  margin: 0;
+  font-size: 1.8rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+/* 언어 스위치 버튼 */
+.lang-switch {
+  display: inline-flex;
+  gap: 8px;
+}
+
+.lang-switch button {
+  min-width: 44px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  border: none;
+  font-size: 0.9rem;
+  cursor: pointer;
+  background: #ffe4c2;
+  color: #8a5b35;
+  transition: background 0.15s ease, color 0.15s ease,
+    box-shadow 0.15s ease, transform 0.05s ease;
+}
+
+.lang-switch button.active {
+  background: #f7a24a;
+  color: #fff;
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.12);
+  transform: translateY(-1px);
+}
+
+/* =========================
+   STEP 공통 박스
+   ========================= */
+
+.step-section {
+  background: #ffe8cf;
+  border-radius: 32px;
+  padding: 28px 28px 32px;
+  box-shadow: 0 18px 45px rgba(0, 0, 0, 0.06);
+  margin-bottom: 32px;
+}
+
+.step-section h2 {
+  margin: 0 0 8px;
+  font-size: 1.4rem;
+  font-weight: 700;
+}
+
+.step-section > p {
+  margin: 0 0 20px;
+  font-size: 0.95rem;
+  line-height: 1.6;
+  color: #7a6044;
+}
+
+/* STEP1 전용 여백 약간 */
+.step-section.step1 {
+  margin-top: 8px;
+}
+
+/* =========================
+   STEP 1 – 단어 입력 & 칩
+   ========================= */
+
+.word-input-block {
+  margin-top: 24px;
+}
+
+.word-input-block label {
+  display: block;
+  font-size: 0.95rem;
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+
+.word-input-row {
+  display: flex;
+  gap: 8px;
+  align-items: stretch;
+}
+
+.word-input-row input[type="text"] {
+  flex: 1;
+  padding: 10px 12px;
+  border-radius: 999px;
+  border: 1px solid #f2c79b;
+  font-size: 0.95rem;
+  background: #fffaf3;
+}
+
+.word-input-row button {
+  padding: 10px 18px;
+  border-radius: 999px;
+  border: none;
+  font-size: 0.95rem;
+  cursor: pointer;
+  background: #f7a24a;
+  color: #fff;
+  font-weight: 600;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.12);
+}
+
+/* 칩 도움말 */
+.chips-hint {
+  margin-top: 10px;
+  font-size: 0.85rem;
+  color: #8a6a4a;
+}
+
+/* 단어 칩 리스트 */
+.chips-row {
+  margin-top: 12px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.chip {
+  position: relative;
+  padding: 6px 20px 6px 12px;
+  border-radius: 999px;
+  border: none;
+  font-size: 0.85rem;
+  cursor: pointer;
+  background: #ffe1bc;
+  color: #7a4e26;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.chip.must {
+  background: #f7a24a;
+  color: #fff;
+}
+
+.chip-close {
+  margin-left: 2px;
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+
+/* =========================
+   STEP 2 – 레이아웃 & 컨트롤
+   ========================= */
+
+.step2-story {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin-top: 12px;
+}
+
+/* 한 줄 */
+.step2-row {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* 라벨 + 인풋 공통 */
+.input-label {
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+
+.text-input {
+  border-radius: 999px;
+  border: 1px solid #f2c79b;
+  padding: 10px 14px;
+  font-size: 0.95rem;
+  background: #fffaf3;
+}
+
+/* 버튼 그룹 (POV, 길이 등) */
+.button-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.pill-button {
+  border-radius: 999px;
+  border: none;
+  padding: 8px 14px;
+  font-size: 0.9rem;
+  cursor: pointer;
+  background: #ffe1bc;
+  color: #7a4e26;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.pill-button.active {
+  background: #f7a24a;
+  color: #fff;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.16);
+}
+
+/* 테마 버튼 그룹은 전체 너비 사용 */
+.theme-group {
+  flex-wrap: wrap;
+}
+
+/* STEP2 – 요청 버튼 영역 */
+.request-row {
+  margin-top: 20px;
+  display: flex;
+  justify-content: flex-start;
+}
+
+.request-row button {
+  border-radius: 999px;
+  border: none;
+  padding: 12px 26px;
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+  background: #f4743b;
+  color: #fff;
+  box-shadow: 0 16px 35px rgba(0, 0, 0, 0.18);
+}
+
+/* =========================
+   Story result
+   ========================= */
+
+.story-result {
+  margin-top: 24px;
+}
+
+.story-result .section-title {
+  margin: 0 0 8px;
+  font-size: 1.2rem;
+  font-weight: 700;
+}
+
+.story-box {
+  margin-top: 8px;
+  border-radius: 24px;
+  background: #fffdf7;
+  padding: 20px 20px 24px;
+  border: 1px solid #f3d0a7;
+  min-height: 140px;
+  white-space: pre-wrap;
+}
+
+.story-text {
+  margin: 0;
+  font-size: 0.95rem;
+  line-height: 1.7;
+}
+
+.story-placeholder {
+  margin: 0;
+  font-size: 0.9rem;
+  color: #8a6a4a;
+}
+
+/* 에러 텍스트 */
+.error-text {
+  margin: 4px 0 0;
+  font-size: 0.85rem;
+  color: #d9534f;
+}
+
+/* =========================
+   Word cards grid (STEP1)
+   ========================= */
+
 /* Word cards grid – 3 x 2, 카드가 영역을 넘치지 않도록 정렬 */
 .word-grid {
   display: grid;
@@ -7,7 +325,7 @@
 }
 
 .word-card {
-  background: #fce4c6;              /* 기존 톤에 맞게 살짝 밝은 베이지 */
+  background: #fce4c6; /* 기존 톤에 맞게 살짝 밝은 베이지 */
   border-radius: 28px;
   border: none;
   padding: 16px;
@@ -25,7 +343,7 @@
 
 .word-card-image-wrapper {
   width: 100%;
-  aspect-ratio: 4 / 5;              /* 항상 직사각형 비율 유지 */
+  aspect-ratio: 4 / 5; /* 항상 직사각형 비율 유지 */
   border-radius: 24px;
   overflow: hidden;
 }
@@ -34,7 +352,7 @@
   width: 100%;
   height: 100%;
   display: block;
-  object-fit: cover;                /* 여백 최소화 – 이미지가 카드를 꽉 채우도록 */
+  object-fit: cover; /* 여백 최소화 – 이미지가 카드를 꽉 채우도록 */
 }
 
 /* 카드가 없을 때 문구 */
@@ -42,4 +360,24 @@
   margin-top: 24px;
   font-size: 0.95rem;
   color: #8a6a4a;
+}
+
+/* =========================
+   반응형 조정
+   ========================= */
+
+@media (max-width: 768px) {
+  .page-root {
+    padding: 24px 16px 40px;
+  }
+
+  .step-section {
+    padding: 20px 18px 24px;
+    border-radius: 24px;
+  }
+
+  .word-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 18px;
+  }
 }
