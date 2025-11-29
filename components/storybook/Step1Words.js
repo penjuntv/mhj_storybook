@@ -22,7 +22,6 @@ export default function Step1Words({
     if (!word) return;
 
     onChangeSelectedWords((prev) => {
-      // 이미 있는 단어면 그대로
       if (prev.some((w) => w.word.toLowerCase() === word.toLowerCase())) {
         return prev;
       }
@@ -96,6 +95,7 @@ export default function Step1Words({
       flexWrap: "wrap",
       gap: 8,
       marginBottom: 6,
+      justifyContent: "center",
     },
     alphabetButton: (active) => ({
       width: 36,
@@ -136,7 +136,7 @@ export default function Step1Words({
       display: "flex",
       alignItems: "center",
       justifyContent: "center",
-      marginBottom: 12,
+      marginBottom: 0, // 아래 텍스트를 없앨 것이므로 여백 최소화
     },
     cardImage: {
       width: "100%",
@@ -187,7 +187,6 @@ export default function Step1Words({
     },
   };
 
-  // 알파벳 13개씩 두 줄로 나누기
   const firstRow = LETTERS.slice(0, 13);
   const secondRow = LETTERS.slice(13);
 
@@ -256,18 +255,7 @@ export default function Step1Words({
                   style={styles.cardImage}
                 />
               </div>
-              {/* 카드 아래에는 이미 글자가 들어가 있으므로 별도 텍스트가 꼭 필요하진 않지만,
-                  접근성을 위해 단어를 한 줄로 보이게 유지 */}
-              <div
-                style={{
-                  fontWeight: 700,
-                  fontSize: 14,
-                  marginTop: 4,
-                  textAlign: "center",
-                }}
-              >
-                {card.word}
-              </div>
+              {/* 카드 이미지 안에 이미 스펠링이 있으므로, 아래 텍스트는 렌더링하지 않음 */}
             </button>
           ))}
         </div>
