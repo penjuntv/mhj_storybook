@@ -1,49 +1,26 @@
 // components/storybook/AlphabetPicker.js
+// 알파벳 버튼 선택 컴포넌트 (A ~ Z)
 
-import React from "react";
+const LETTERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("");
 
-const ALPHABETS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("");
-
-export default function AlphabetPicker({ selectedLetter, onSelect }) {
-  const handleClick = (letter) => {
-    if (typeof onSelect === "function") {
-      onSelect(letter);
-    }
-  };
+export default function AlphabetPicker({ selectedLetter, onChange }) {
+  const safeSelected = LETTERS.includes(selectedLetter)
+    ? selectedLetter
+    : "A";
 
   return (
-    <div
-      style={{
-        display: "flex",
-        flexWrap: "wrap",
-        gap: 12,
-        justifyContent: "center",
-        marginBottom: 24,
-      }}
-    >
-      {ALPHABETS.map((letter) => {
-        const isActive =
-          (selectedLetter || "A").toUpperCase() === letter.toUpperCase();
-
+    <div className="alphabet-picker">
+      {LETTERS.map((letter) => {
+        const isActive = letter === safeSelected;
         return (
           <button
             key={letter}
             type="button"
-            onClick={() => handleClick(letter)}
-            style={{
-              width: 40,
-              height: 40,
-              borderRadius: "50%",
-              border: "none",
-              cursor: "pointer",
-              fontWeight: 600,
-              fontSize: 16,
-              boxShadow: isActive
-                ? "0 0 0 3px rgba(255, 153, 102, 0.7)"
-                : "0 2px 6px rgba(0, 0, 0, 0.08)",
-              backgroundColor: isActive ? "#ff914d" : "#fff7ef",
-              color: isActive ? "#ffffff" : "#92562a",
-              transition: "all 0.15s ease-out",
+            className={`alphabet-button ${isActive ? "active" : ""}`}
+            onClick={() => {
+              if (typeof onChange === "function") {
+                onChange(letter);
+              }
             }}
           >
             {letter}
