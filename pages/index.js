@@ -57,10 +57,7 @@ export default function HomePage() {
       "step1Subtitle",
       "오늘 수업·숙제·책에서 등장한 영어 단어를 적거나, 아래 카드에서 골라 보세요."
     ),
-    step1InputLabel: get(
-      "writeWordsLabel",
-      "오늘 배운 영어 단어 적기"
-    ),
+    step1InputLabel: get("writeWordsLabel", "오늘 배운 영어 단어 적기"),
     step1InputPlaceholder: get(
       "writeWordsPlaceholder",
       "apple, banana, mom 처럼 쉼표(,)나 줄바꿈으로 단어를 입력해 주세요."
@@ -83,14 +80,8 @@ export default function HomePage() {
 
     nameLabel: get("kidNameLabel", "이름 (예: Yujin)"),
     wayLabel: get("povLabel", "이야기 방식"),
-    wayFirst: get(
-      "povFirstPerson",
-      "내가 이야기의 주인공 (1인칭)"
-    ),
-    wayThird: get(
-      "povThirdPerson",
-      "내가 들려주는 이야기 (3인칭)"
-    ),
+    wayFirst: get("povFirstPerson", "내가 이야기의 주인공 (1인칭)"),
+    wayThird: get("povThirdPerson", "내가 들려주는 이야기 (3인칭)"),
 
     themeLabel: get("themeTitle", "이야기 테마 고르기"),
     lengthLabel: get("lengthTitle", "이야기 길이 선택"),
@@ -102,18 +93,12 @@ export default function HomePage() {
       "askButton",
       "AI에게 영어 동화 만들기 요청하기"
     ),
-    loadingStory: get(
-      "loadingStory",
-      "AI가 동화를 만드는 중입니다..."
-    ),
+    loadingStory: get("loadingStory", "AI가 동화를 만드는 중입니다..."),
     mustSelectWordsMsg: get(
       "mustSelectWords",
       "단어를 1개 이상 선택해 주세요."
     ),
-    resultTitle: get(
-      "resultTitle",
-      "AI가 만든 오늘의 영어 동화"
-    ),
+    resultTitle: get("resultTitle", "AI가 만든 오늘의 영어 동화"),
     storyTooFewWords: get("storyTooFewWords", null),
     ideasTooFewWords: get("ideasTooFewWords", null),
   };
@@ -124,10 +109,7 @@ export default function HomePage() {
     if (selectedWords.length >= MAX_WORDS) return;
     if (selectedWords.some((w) => w.word === word)) return;
 
-    setSelectedWords((prev) => [
-      ...prev,
-      { word, mustInclude: false },
-    ]);
+    setSelectedWords((prev) => [...prev, { word, mustInclude: false }]);
   };
 
   // STEP1 – 입력 창에서 단어 추가
@@ -142,9 +124,7 @@ export default function HomePage() {
     if (!rawWords.length) return;
 
     setSelectedWords((prev) => {
-      const exist = new Set(
-        prev.map((w) => w.word.toLowerCase())
-      );
+      const exist = new Set(prev.map((w) => w.word.toLowerCase()));
       const next = [...prev];
 
       for (const w of rawWords) {
@@ -165,26 +145,20 @@ export default function HomePage() {
   const toggleMustInclude = (word) => {
     setSelectedWords((prev) =>
       prev.map((w) =>
-        w.word === word
-          ? { ...w, mustInclude: !w.mustInclude }
-          : w
+        w.word === word ? { ...w, mustInclude: !w.mustInclude } : w
       )
     );
   };
 
   // STEP1 – 칩 삭제
   const removeWordChip = (word) => {
-    setSelectedWords((prev) =>
-      prev.filter((w) => w.word !== word)
-    );
+    setSelectedWords((prev) => prev.filter((w) => w.word !== word));
   };
 
   // STEP2 – 테마 토글
   const toggleTheme = (id) => {
     setThemeId((prev) =>
-      prev.includes(id)
-        ? prev.filter((x) => x !== id)
-        : [...prev, id]
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
     );
   };
 
@@ -194,9 +168,7 @@ export default function HomePage() {
     setStoryError(null);
 
     const coreWords = selectedWords
-      .map((w) =>
-        typeof w === "string" ? w : w.word
-      )
+      .map((w) => (typeof w === "string" ? w : w.word))
       .filter(Boolean);
 
     if (!coreWords.length) {
@@ -222,16 +194,15 @@ export default function HomePage() {
       const fakeStory = `
 Once upon a time, ${
         payload.kidName || "a little child"
-      } went on an adventure
-with words like ${payload.words.join(", ")}. (demo text)
+      } went on an adventure with words like ${payload.words.join(
+        ", "
+      )}. (demo text)
       `.trim();
 
       setStory(fakeStory);
     } catch (err) {
       console.error(err);
-      setStoryError(
-        "동화를 만드는 중 문제가 발생했습니다."
-      );
+      setStoryError("동화를 만드는 중 문제가 발생했습니다.");
     } finally {
       setIsRequesting(false);
     }
@@ -275,7 +246,7 @@ with words like ${payload.words.join(", ")}. (demo text)
 
         <AlphabetPicker
           selectedLetter={selectedLetter}
-          onSelectLetter={setSelectedLetter}
+          onChange={setSelectedLetter}
         />
 
         <WordCardsGrid
@@ -292,15 +263,10 @@ with words like ${payload.words.join(", ")}. (demo text)
             <input
               type="text"
               value={wordInput}
-              onChange={(e) =>
-                setWordInput(e.target.value)
-              }
+              onChange={(e) => setWordInput(e.target.value)}
               placeholder={ui.step1InputPlaceholder}
             />
-            <button
-              type="button"
-              onClick={handleAddWordsFromInput}
-            >
+            <button type="button" onClick={handleAddWordsFromInput}>
               추가
             </button>
           </div>
@@ -314,12 +280,8 @@ with words like ${payload.words.join(", ")}. (demo text)
               <button
                 key={w.word}
                 type="button"
-                className={`chip ${
-                  w.mustInclude ? "must" : ""
-                }`}
-                onClick={() =>
-                  toggleMustInclude(w.word)
-                }
+                className={`chip ${w.mustInclude ? "must" : ""}`}
+                onClick={() => toggleMustInclude(w.word)}
               >
                 {w.word}
                 {w.mustInclude && " ★"}
@@ -371,9 +333,7 @@ with words like ${payload.words.join(", ")}. (demo text)
             onClick={handleRequestStory}
             disabled={isRequesting}
           >
-            {isRequesting
-              ? ui.loadingStory
-              : ui.requestButtonLabel}
+            {isRequesting ? ui.loadingStory : ui.requestButtonLabel}
           </button>
         </div>
 
