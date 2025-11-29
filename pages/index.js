@@ -18,8 +18,11 @@ export default function HomePage() {
 
   // STEP1 – 알파벳 / 카드
   const [selectedLetter, setSelectedLetter] = useState("A");
-  const { cards, isLoading: cardsLoading, error: cardsError } =
-    useWordCards(selectedLetter);
+  const {
+    cards,
+    isLoading: cardsLoading,
+    error: cardsError,
+  } = useWordCards(selectedLetter);
 
   // STEP1 – 오늘 배운 단어
   const [selectedWords, setSelectedWords] = useState([]); // [{ word, mustInclude }]
@@ -34,39 +37,49 @@ export default function HomePage() {
   const [story, setStory] = useState("");
   const [storyError, setStoryError] = useState(null);
 
-  // UI 텍스트 (항상 안전하게 폴백)
-  const t = getUIText?.(language) || {};
+  // 언어별 UI 텍스트 (항상 객체 반환 + 안전 폴백)
+  const t = getUIText(language) || {};
 
-  const {
-    pageTitle = "AI Storybook - 오늘 배운 단어로 영어 동화 만들기",
-    step1Title = "STEP 1 · Today's words",
-    step1Description = "오늘 수업·숙제·책에서 등장한 영어 단어를 적거나, 아래 카드에서 골라 보세요.",
-    step1InputLabel = "오늘 배운 영어 단어 적기",
-    step1InputPlaceholder =
-      "apple, banana, mom 처럼 쉼표(,)나 줄바꿈으로 단어를 입력해 주세요.",
-    chipsHint =
-      "Word chips (단어 칩) · 단어 칩을 클릭하면 ★ 표시가 생기며, 동화 속에 꼭 들어갔으면 하는 단어로 표시됩니다. X로 삭제할 수 있습니다.",
-    step1NoCards = "아직 이 알파벳에는 카드가 없습니다.",
+  // ===== UI 텍스트 안전 추출 (키 이름을 uiText.js와 정확히 맞춤) =====
+  const pageTitle =
+    t.appTitle || "AI Storybook – 오늘 배운 단어로 영어 동화 만들기";
 
-    step2Title = "STEP 2 · AI가 만든 영어 동화",
-    step2Intro =
-      "아이 이름과 이야기 방식을 고르고, 동화의 테마와 길이를 선택해 주세요. 단어 2~8개를 고르면, AI가 아이 눈높이에 맞춰 동화를 만들어 줍니다.",
+  const step1Title = t.step1Title || "STEP 1 · Today's words";
+  const step1Description =
+    t.step1Subtitle ||
+    "오늘 수업·숙제·책에서 등장한 영어 단어를 적거나, 아래 카드에서 골라 보세요.";
+  const step1InputLabel = t.writeWordsLabel || "오늘 배운 영어 단어 적기";
+  const step1InputPlaceholder =
+    t.writeWordsPlaceholder ||
+    "apple, banana, mom 처럼 쉼표(,)나 줄바꿈으로 단어를 입력해 주세요.";
+  const chipsHint =
+    t.chipsLabel ||
+    "Word chips (단어 칩) · 단어 칩을 클릭하면 ★ 표시가 생기며, 동화 속에 꼭 들어갔으면 하는 단어로 표시됩니다. X로 삭제할 수 있습니다.";
+  const step1NoCards = t.noCardsForLetter || "아직 이 알파벳에는 카드가 없습니다.";
 
-    step2NameLabel = "이름 (예: Yujin) (선택)",
-    step2WayLabel = "이야기 방식",
-    step2WayFirst = "내가 이야기의 주인공 (1인칭)",
-    step2WayThird = "내가 들려주는 이야기 (3인칭)",
+  const step2Title = t.step2Title || "STEP 2 · AI가 만든 영어 동화";
+  const step2Intro =
+    t.step2Subtitle ||
+    "아이 이름과 이야기 방식을 고르고, 동화의 테마와 길이를 선택해 주세요. 단어 2~8개를 고르면 AI가 아이 눈높이에 맞춰 동화를 만들어 줍니다.";
 
-    step2ThemeLabel = "이야기 테마 고르기",
-    step2LengthLabel = "이야기 길이",
-    step2LengthShort = "숏 (아주 짧게)",
-    step2LengthNormal = "노멀 (보통 길이)",
-    step2LengthLong = "롱 (조금 길게)",
+  // uiText.js에 정의된 실제 키 사용
+  const step2NameLabel = t.kidNameLabel || "이름 (예: Yujin)";
+  const step2WayLabel = t.povLabel || "이야기 방식";
+  const step2WayFirst =
+    t.povFirstPerson || '내가 이야기의 주인공 (1인칭, "나")';
+  const step2WayThird =
+    t.povThirdPerson || "내가 들려주는 이야기 (3인칭)";
 
-    requestButtonLabel = "AI에게 영어 동화 만들기 요청하기",
-  } = t;
+  const step2ThemeLabel = t.themeTitle || "이야기 테마 고르기";
+  const step2LengthLabel = t.lengthTitle || "이야기 길이 선택";
+  const step2LengthShort = t.lengthShort || "짧게";
+  const step2LengthNormal = t.lengthNormal || "보통";
+  const step2LengthLong = t.lengthLong || "길게";
 
-  // STEP1 – 카드에서 단어 추가
+  const requestButtonLabel =
+    t.askButton || "AI에게 영어 동화 만들기 요청하기";
+
+  // ===== STEP 1 – 카드에서 단어 추가 =====
   const handleSelectCardWord = (word) => {
     if (!word) return;
     if (selectedWords.length >= MAX_WORDS) return;
@@ -75,9 +88,10 @@ export default function HomePage() {
     setSelectedWords((prev) => [...prev, { word, mustInclude: false }]);
   };
 
-  // STEP1 – 입력 창에서 단어 추가
+  // STEP 1 – 입력 창에서 단어 추가
   const handleAddWordsFromInput = () => {
     if (!wordInput.trim()) return;
+
     const rawWords = wordInput
       .split(/[\n,]/)
       .map((w) => w.trim())
@@ -103,7 +117,7 @@ export default function HomePage() {
     setWordInput("");
   };
 
-  // STEP1 – 칩 클릭(★ 토글)
+  // STEP 1 – 칩 클릭(★ 토글)
   const toggleMustInclude = (word) => {
     setSelectedWords((prev) =>
       prev.map((w) =>
@@ -112,19 +126,19 @@ export default function HomePage() {
     );
   };
 
-  // STEP1 – 칩 삭제
+  // STEP 1 – 칩 삭제
   const removeWordChip = (word) => {
     setSelectedWords((prev) => prev.filter((w) => w.word !== word));
   };
 
-  // STEP2 – 테마 토글
+  // STEP 2 – 테마 토글
   const toggleTheme = (id) => {
     setThemeId((prev) =>
       prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
     );
   };
 
-  // STEP2 – 동화 요청
+  // STEP 2 – 동화 요청
   async function handleRequestStory() {
     setStory("");
     setStoryError(null);
@@ -134,11 +148,14 @@ export default function HomePage() {
       .filter(Boolean);
 
     if (!coreWords.length) {
-      setStoryError("먼저 단어를 1개 이상 선택해 주세요.");
+      const msg =
+        t.mustSelectWords || "먼저 단어를 1개 이상 선택해 주세요.";
+      setStoryError(msg);
       return;
     }
 
     setIsRequesting(true);
+
     try {
       const payload = {
         language,
@@ -152,16 +169,20 @@ export default function HomePage() {
           .map((w) => w.word),
       };
 
-      // 실제 API 연동 대신, 일단은 임시 더미 스토리
+      // TODO: 나중에 실제 API 연동
       const fakeStory = `
 Once upon a time, ${payload.kidName || "a little child"} went on an adventure
-with words like ${payload.words.join(", ")}. (demo text)
+with words like ${payload.words.join(", ")}.
+(This is demo text — replace with real API response.)
       `.trim();
 
       setStory(fakeStory);
     } catch (err) {
       console.error(err);
-      setStoryError("동화를 만드는 중 문제가 발생했습니다.");
+      const msg =
+        t.loadingStory ||
+        "동화를 만드는 중 문제가 발생했습니다. 잠시 후 다시 시도해 주세요.";
+      setStoryError(msg);
     } finally {
       setIsRequesting(false);
     }
