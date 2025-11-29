@@ -5,11 +5,10 @@ export default function WordCardsGrid({
   cards,
   isLoading,
   error,
-  selectedWords,
-  onCardClick,
+  onSelectWord,
+  emptyMessage,
 }) {
   const safeCards = Array.isArray(cards) ? cards : [];
-  const safeSelected = Array.isArray(selectedWords) ? selectedWords : [];
 
   if (isLoading) {
     return (
@@ -30,7 +29,7 @@ export default function WordCardsGrid({
   if (safeCards.length === 0) {
     return (
       <div className="wordcards-grid empty">
-        <p>아직 이 알파벳에는 카드가 없습니다.</p>
+        <p>{emptyMessage || "아직 이 알파벳에는 카드가 없습니다."}</p>
       </div>
     );
   }
@@ -51,28 +50,20 @@ export default function WordCardsGrid({
           card.label ||
           "Word";
         const imageUrl =
-          card.imageURL ||
           card.imageUrl ||
+          card.imageURL ||
           card.image ||
           card.url ||
           "";
-
-        // 이미 선택된 단어인지 여부 (필요하면 사용)
-        const wordLower = String(label).toLowerCase();
-        const alreadySelected = safeSelected.filter(Boolean).some((w) => {
-          const wWord =
-            typeof w === "string" ? w : w.word || w.en || "";
-          return wWord.toLowerCase() === wordLower;
-        });
 
         return (
           <button
             key={id}
             type="button"
-            className={`wordcard ${alreadySelected ? "selected" : ""}`}
+            className="wordcard"
             onClick={() => {
-              if (typeof onCardClick === "function") {
-                onCardClick({ ...card, word: label });
+              if (typeof onSelectWord === "function") {
+                onSelectWord(label);
               }
             }}
           >
