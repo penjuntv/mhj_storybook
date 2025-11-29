@@ -1,6 +1,7 @@
 // data/wordCards.js
+
 // Supabase 이미지 베이스 URL
-const SUPABASE_WORD_IMAGES_BASE =
+export const SUPABASE_WORD_IMAGES_BASE =
   `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/word-images/default_en`;
 
 // -------------------------------------------------------------
@@ -43,7 +44,7 @@ export const LETTER_IMAGES = {
 export const WORD_CARDS = {
   A: [
     { id: "A_airplane" },
-    { id: "A_alligator" }, // 기존 A_Alligator 였다면 파일명도 소문자 기준으로 맞춰 주는 걸 추천
+    { id: "A_alligator" },
     { id: "A_angry" },
     { id: "A_ant" },
     { id: "A_apple" },
@@ -213,7 +214,6 @@ export const WORD_CARDS = {
   ],
 
   T: [
-    // 예전에 같이 정리했던 세트: Two, Tree, Turtle, Train, Truck, tomato
     { id: "T_two" },
     { id: "T_tree" },
     { id: "T_turtle" },
@@ -223,7 +223,6 @@ export const WORD_CARDS = {
   ],
 
   U: [
-    // Umbrella, Unicorn, Up, UFO, Universe, Uniform
     { id: "U_umbrella" },
     { id: "U_unicorn" },
     { id: "U_up" },
@@ -233,7 +232,6 @@ export const WORD_CARDS = {
   ],
 
   V: [
-    // Violin, volcano, Vacuum, Video, Vegetable, village
     { id: "V_violin" },
     { id: "V_volcano" },
     { id: "V_vacuum" },
@@ -252,7 +250,6 @@ export const WORD_CARDS = {
   ],
 
   X: [
-    // X 는 단어가 적어서 발음 중심 단어 + 패턴 단어 섞음
     { id: "X_xray" },
     { id: "X_xylophone" },
     { id: "X_box" },
