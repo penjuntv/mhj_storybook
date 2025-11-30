@@ -1,0 +1,77 @@
+// pages/api/generateColoringPages.js
+import OpenAI from "openai";
+
+const client = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY,
+});
+
+/**
+ * 스토리 장면을 받아서 흑백 선화(색칠용) 이미지를 생성하는 API
+ * 요청: { pages: [{id, summary, text}], themeKey, locale }
+ * 응답: { images: [{id, url}] }
+ */
+export default async function handler(req, res) {
+  if (req.method !== "POST") {
+    res.setHeader("Allow", ["POST"]);
+    return res.status(405).json({ error: "Method Not Allowed" });
+  }
+
+  try {
+    const { pages, themeKey } = req.body || {};
+    if (!Array.isArray(pages) || pages.length === 0) {
+      return res.status(400).json({ error: "pages is required" });
+    }
+
+    // 테마에 따른 톤 설명 (프롬프트에 사용)
+    const themePromptMap = {
+      everyday: "everyday life adventure",
+      school: "school life with classmates and teacher",
+      family: "warm family scenes with parents and children",
+      friends: "kids playing with friends",
+      animals: "cute animals",
+      princess: "fairy-tale princess and castle",
+      hero: "little heroes on an adventure",
+      classic: "classic fairy tale atmosphere",
+      animation: "cartoon animation style",
+      sf: "space and sci-fi adventure",
+    };
+    const themeDescription =
+      themePromptMap[themeKey] || "kids story illustration";
+
+    const images = [];
+
+    // DALL·E / gpt-image-1는 한 번에 여러 장 생성이 제한적일 수 있어서
+    // 페이지별로 순차 생성 (간단 버전)
+    for (const page of pages) {
+      const prompt = [
+        "Children's coloring book page, black and white only.",
+        "Thick clean black outlines, all shapes closed for easy bucket fill.",
+        "No shading, no gray, simple background, big areas for kids to color.",
+        `Scene theme: ${themeDescription}.`,
+        `Story scene description: ${page.summary}`,
+      ].join(" ");
+
+      const result = await client.images.generate({
+        model: "gpt-image-1",
+        prompt,
+        size: "1024x1024",
+        n: 1,
+      });
+
+      const url = result.data?.[0]?.url;
+      if (url) {
+        images.push({
+          id: page.id,
+          url,
+        });
+      }
+    }
+
+    return res.status(200).json({ images });
+  } catch (err) {
+    console.error(err);
+    return res
+      .status(500)
+      .json({ error: err.message || "Failed to generate coloring pages" });
+  }
+}
