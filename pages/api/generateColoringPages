@@ -1,77 +1,64 @@
 // pages/api/generateColoringPages.js
-import OpenAI from "openai";
 
-const client = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
-
-/**
- * 스토리 장면을 받아서 흑백 선화(색칠용) 이미지를 생성하는 API
- * 요청: { pages: [{id, summary, text}], themeKey, locale }
- * 응답: { images: [{id, url}] }
- */
-export default async function handler(req, res) {
+export default function handler(req, res) {
+  // 이 API는 POST만 허용합니다.
   if (req.method !== "POST") {
     res.setHeader("Allow", ["POST"]);
-    return res.status(405).json({ error: "Method Not Allowed" });
+    return res
+      .status(405)
+      .json({ error: "Method Not Allowed. Use POST with { story }." });
   }
 
   try {
-    const { pages, themeKey } = req.body || {};
-    if (!Array.isArray(pages) || pages.length === 0) {
-      return res.status(400).json({ error: "pages is required" });
+    const { story } = req.body || {};
+
+    if (!story || typeof story !== "string") {
+      return res.status(400).json({ error: "Missing or invalid `story`." });
     }
 
-    // 테마에 따른 톤 설명 (프롬프트에 사용)
-    const themePromptMap = {
-      everyday: "everyday life adventure",
-      school: "school life with classmates and teacher",
-      family: "warm family scenes with parents and children",
-      friends: "kids playing with friends",
-      animals: "cute animals",
-      princess: "fairy-tale princess and castle",
-      hero: "little heroes on an adventure",
-      classic: "classic fairy tale atmosphere",
-      animation: "cartoon animation style",
-      sf: "space and sci-fi adventure",
-    };
-    const themeDescription =
-      themePromptMap[themeKey] || "kids story illustration";
+    // 스토리를 문장/문단 단위로 잘라서 4~8페이지 정도로 분할
+    const maxPages = 8;
+    const targetCharsPerPage = Math.max(300, Math.floor(story.length / 6));
 
-    const images = [];
+    const rawSegments = story
+      .split(/\n{2,}|\r\n{2,}/) // 빈 줄 기준 1차 분할
+      .flatMap((seg) => seg.split(/(?<=[.!?。！？])\s+/)); // 문장 기준 2차 분할
 
-    // DALL·E / gpt-image-1는 한 번에 여러 장 생성이 제한적일 수 있어서
-    // 페이지별로 순차 생성 (간단 버전)
-    for (const page of pages) {
-      const prompt = [
-        "Children's coloring book page, black and white only.",
-        "Thick clean black outlines, all shapes closed for easy bucket fill.",
-        "No shading, no gray, simple background, big areas for kids to color.",
-        `Scene theme: ${themeDescription}.`,
-        `Story scene description: ${page.summary}`,
-      ].join(" ");
+    const pages = [];
+    let current = "";
 
-      const result = await client.images.generate({
-        model: "gpt-image-1",
-        prompt,
-        size: "1024x1024",
-        n: 1,
-      });
+    for (const seg of rawSegments) {
+      const trimmed = seg.trim();
+      if (!trimmed) continue;
 
-      const url = result.data?.[0]?.url;
-      if (url) {
-        images.push({
-          id: page.id,
-          url,
-        });
+      if (current.length + trimmed.length + 1 > targetCharsPerPage) {
+        if (current) {
+          pages.push(current.trim());
+          current = "";
+        }
       }
+      current += (current ? " " : "") + trimmed;
+
+      if (pages.length >= maxPages) break;
+    }
+    if (current && pages.length < maxPages) {
+      pages.push(current.trim());
     }
 
-    return res.status(200).json({ images });
+    // 최소 1장은 보장
+    if (pages.length === 0) {
+      pages.push(story.slice(0, targetCharsPerPage));
+    }
+
+    const result = pages.map((text, idx) => ({
+      id: idx + 1,
+      title: `Page ${idx + 1}`,
+      text,
+    }));
+
+    return res.status(200).json({ pages: result });
   } catch (err) {
-    console.error(err);
-    return res
-      .status(500)
-      .json({ error: err.message || "Failed to generate coloring pages" });
+    console.error("generateColoringPages error:", err);
+    return res.status(500).json({ error: "Internal server error" });
   }
 }
