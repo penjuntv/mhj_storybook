@@ -3,22 +3,24 @@
 /**
  * Coloring page generator API
  *
- * 요청: POST /api/generateColoringPages
- * body: { story: string, locale?: 'en' | 'ko' | 'zh', pageCount?: number }
+ * URL: /api/generateColoringPages
  *
- * 응답: { pages: { index: number, text: string, imageUrl: string }[] }
+ * Supports both GET and POST to avoid 405 issues:
+ * - POST body: { story: string, locale?: 'en' | 'ko' | 'zh', pageCount?: number }
+ * - GET  query: ?story=...&locale=en&pageCount=4
  *
- * - OpenAI Images API(DALL·E)를 사용해 흑백 라인아트(색칠공부용) 이미지를 생성합니다.
- * - OPENAI_API_KEY 환경변수가 필요합니다.
+ * Response: { pages: { index: number, text: string, imageUrl: string }[] }
+ *
+ * Uses OpenAI Images API (gpt-image-1) to create black-and-white line-art
+ * coloring pages with clear bold outlines (Colorfy 스타일의 채우기용 그림).
  */
 
 const OPENAI_API_URL = "https://api.openai.com/v1/images/generations";
 
-// 스토리를 문장 단위로 잘라서 4~8개의 장면 텍스트로 만드는 간단한 헬퍼
+// 스토리를 4~N개의 장면으로 나누는 헬퍼
 function splitStoryToScenes(story, targetCount = 4) {
   if (!story || typeof story !== "string") return [];
 
-  // 줄바꿈 + 마침표 기준으로 문장 분리 (영어/한글 둘 다 대충 처리)
   const rawPieces = story
     .split(/[\n\r]+/)
     .join(" ")
@@ -28,7 +30,6 @@ function splitStoryToScenes(story, targetCount = 4) {
 
   if (rawPieces.length === 0) return [];
 
-  // targetCount 개수에 맞게 문장들을 묶어서 씬 텍스트 생성
   const scenes = [];
   const chunkSize = Math.max(1, Math.ceil(rawPieces.length / targetCount));
 
@@ -41,10 +42,6 @@ function splitStoryToScenes(story, targetCount = 4) {
 }
 
 export default async function handler(req, res) {
-  if (req.method !== "POST") {
-    return res.status(405).json({ error: "Method not allowed" });
-  }
-
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) {
     return res
@@ -53,20 +50,40 @@ export default async function handler(req, res) {
   }
 
   try {
-    const { story, locale = "en", pageCount = 4 } = req.body || {};
+    const method = req.method || "GET";
+
+    // 1) 메서드 종류와 상관없이 story, locale, pageCount 를 뽑아낸다.
+    let story;
+    let locale = "en";
+    let pageCount = 4;
+
+    if (method === "POST") {
+      const body = req.body || {};
+      story = body.story;
+      if (body.locale) locale = body.locale;
+      if (body.pageCount) pageCount = Number(body.pageCount) || 4;
+    } else {
+      // GET, HEAD, 기타 → query 에서 읽기
+      const q = req.query || {};
+      story = q.story;
+      if (q.locale) locale = q.locale;
+      if (q.pageCount) pageCount = Number(q.pageCount) || 4;
+    }
 
     if (!story || typeof story !== "string") {
-      return res.status(400).json({ error: "Missing 'story' in request body." });
+      return res.status(400).json({
+        error: "Missing 'story' (story text is required).",
+        receivedMethod: method,
+      });
     }
 
     const scenes = splitStoryToScenes(story, pageCount);
     if (scenes.length === 0) {
-      return res
-        .status(400)
-        .json({ error: "Failed to extract scenes from story text." });
+      return res.status(400).json({
+        error: "Failed to extract scenes from story text.",
+      });
     }
 
-    // 언어에 따라 살짝 다른 톤의 설명 (하지만 이미지는 항상 영어 프롬프트로 요청)
     const localeHint =
       locale === "ko"
         ? "for a Korean child learning English"
@@ -80,10 +97,11 @@ export default async function handler(req, res) {
       const sceneText = scenes[i];
 
       const prompt = `
-        Black-and-white line art coloring page for children, clean bold outlines,
-        no shading, no grey tones, no text, printable coloring sheet.
-        Scene ${i + 1} ${localeHint}:
-        ${sceneText}
+Black-and-white line art coloring page for children.
+Clean bold outlines, no shading, no grey tones, no colors, no text.
+Printable coloring sheet with clear closed regions for tap-to-fill coloring.
+Scene ${i + 1} ${localeHint}:
+${sceneText}
       `.trim();
 
       const response = await fetch(OPENAI_API_URL, {
