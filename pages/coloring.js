@@ -1,299 +1,358 @@
 // pages/coloring.js
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import Head from "next/head";
 import { useRouter } from "next/router";
 
-// 간단 I18N (필요하면 Step2와 맞춰 확장 가능)
+// 다국어 UI 텍스트 (스토리는 항상 영어지만, 화면 문구는 로케일에 따라 변경)
 const I18N = {
   ko: {
-    title: "STEP 3 · 색칠하기 | AI Storybook – 색칠하기",
+    title: "STEP 3 · 색칠하기",
     subtitle: "AI Storybook – 색칠하기",
-    sceneSelect: "장면 선택",
-    generatingErrorPrefix: "색칠용 그림을 생성하는 중 오류가 발생했습니다: ",
-    noPages: "아직 생성된 그림이 없습니다.",
-    pageLabel: "Page",
-    colorLabel: "색 선택:",
-    fullscreen: "전체 화면",
+    sceneListTitle: "장면 선택",
+    loadingScenes: "색칠용 장면을 만드는 중입니다...",
+    scenesErrorPrefix: "색칠용 그림을 생성하는 중 오류가 발생했습니다: ",
+    noScenes: "아직 생성된 장면이 없습니다.",
+    colorsLabel: "색 선택",
+    fullScreen: "전체 화면",
     load: "불러오기",
     save: "저장",
     tip: "팁: 태블릿/스마트폰에서는 가로 화면으로 돌리면 색칠하기 캔버스를 더 크게 볼 수 있습니다.",
   },
   en: {
-    title: "STEP 3 · Coloring | AI Storybook – Coloring",
+    title: "STEP 3 · Coloring",
     subtitle: "AI Storybook – Coloring",
-    sceneSelect: "Scenes",
-    generatingErrorPrefix: "Error while generating coloring pages: ",
-    noPages: "No pages generated yet.",
-    pageLabel: "Page",
-    colorLabel: "Color:",
-    fullscreen: "Fullscreen",
+    sceneListTitle: "Scene selection",
+    loadingScenes: "Preparing coloring scenes...",
+    scenesErrorPrefix: "Error while generating coloring scenes: ",
+    noScenes: "No scenes have been created yet.",
+    colorsLabel: "Colors",
+    fullScreen: "Full screen",
     load: "Load",
     save: "Save",
-    tip: "Tip: On tablets/phones, rotate to landscape for a larger coloring canvas.",
+    tip: "Tip: On tablets/phones rotate to landscape to see a bigger canvas.",
   },
   zh: {
-    title: "STEP 3 · 填色 | AI 故事书 – 填色",
-    subtitle: "AI 故事书 – 填色",
-    sceneSelect: "场景选择",
-    generatingErrorPrefix: "生成填色图片时出错：",
-    noPages: "还没有生成任何页面。",
-    pageLabel: "Page",
-    colorLabel: "颜色选择：",
-    fullscreen: "全屏",
-    load: "读取",
+    title: "STEP 3 · 涂色",
+    subtitle: "AI Storybook – 涂色",
+    sceneListTitle: "选择场景",
+    loadingScenes: "正在生成涂色场景…",
+    scenesErrorPrefix: "生成涂色场景时出错：",
+    noScenes: "目前还没有生成场景。",
+    colorsLabel: "颜色选择",
+    fullScreen: "全屏",
+    load: "载入",
     save: "保存",
     tip: "提示：在平板/手机上横屏可以看到更大的画布。",
   },
 };
 
-// 20색 팔레트
-const PALETTE = [
+// 3–5세 아이 기준 크고 선명한 20색 팔레트
+const COLOR_PALETTE = [
   "#000000",
-  "#663300",
+  "#7F7F7F",
+  "#C00000",
   "#FF0000",
-  "#FFA500",
-  "#FFD700",
-  "#008000",
-  "#00CED1",
-  "#0000FF",
-  "#800080",
-  "#FFC0CB",
-  "#FFFFFF",
-  "#8B4513",
-  "#FF7F50",
+  "#FFC000",
   "#FFFF00",
-  "#ADFF2F",
-  "#40E0D0",
-  "#1E90FF",
-  "#4B0082",
-  "#FF69B4",
-  "#A9A9A9",
+  "#92D050",
+  "#00B050",
+  "#00B0F0",
+  "#0070C0",
+  "#002060",
+  "#7030A0",
+  "#FF99CC",
+  "#FF6600",
+  "#CCFF66",
+  "#99FFFF",
+  "#99CCFF",
+  "#CCCCFF",
+  "#FFFFFF",
+  "#663300",
 ];
-
-function decodeStoryParam(raw) {
-  if (!raw) return "";
-  if (Array.isArray(raw)) raw = raw[0];
-  try {
-    return decodeURIComponent(raw);
-  } catch {
-    return String(raw);
-  }
-}
 
 export default function ColoringPage() {
   const router = useRouter();
   const [locale, setLocale] = useState("ko");
-  const t = useMemo(() => I18N[locale], [locale]);
+  const t = I18N[locale] || I18N.ko;
 
-  const rawStory = router.query.story;
-  const story = useMemo(() => decodeStoryParam(rawStory), [rawStory]);
-
-  const [pages, setPages] = useState([]); // {id,title,text}[]
-  const [pagesLoading, setPagesLoading] = useState(false);
-  const [pagesError, setPagesError] = useState("");
-
+  const [storyText, setStoryText] = useState("");
+  const [pages, setPages] = useState([]); // [{ id, index, title, caption, description }]
   const [selectedPageIndex, setSelectedPageIndex] = useState(0);
+  const [loadingScenes, setLoadingScenes] = useState(false);
+  const [scenesError, setScenesError] = useState("");
 
-  const [currentColor, setCurrentColor] = useState(PALETTE[2]); // 기본 빨강
+  // 캔버스 관련 상태
   const canvasRef = useRef(null);
-  const canvasWrapperRef = useRef(null);
+  const containerRef = useRef(null);
+  const [brushColor, setBrushColor] = useState(COLOR_PALETTE[3]); // 밝은 빨강
+  const [brushSize, setBrushSize] = useState(8);
   const isDrawingRef = useRef(false);
   const lastPointRef = useRef({ x: 0, y: 0 });
 
-  // --- 스토리 기반 페이지 생성 요청 ---
+  // 페이지별 그림 상태를 저장할 수 있도록 구조를 준비해 둔다.
+  // 지금은 단일 캔버스만 사용하지만, 나중에 sceneImages[pageId] 로 저장/복원 가능.
+  const [sceneImages, setSceneImages] = useState({}); // { [pageId]: ImageDataURL }
+
+  // ----- 스토리 텍스트 읽어오기 -----
   useEffect(() => {
-    if (!story) return;
+    // 1) 쿼리에서 가져오기
+    const queryStory =
+      typeof router.query.story === "string"
+        ? decodeURIComponent(router.query.story)
+        : "";
 
-    async function fetchPages() {
-      setPagesLoading(true);
-      setPagesError("");
+    if (queryStory) {
+      setStoryText(queryStory);
+      return;
+    }
 
+    // 2) 로컬스토리지에서 가져오기 (선택 사항)
+    if (typeof window !== "undefined") {
+      const stored = window.localStorage.getItem("mhj_storybook_last_story");
+      if (stored) {
+        setStoryText(stored);
+      }
+    }
+  }, [router.query.story]);
+
+  // ----- 스토리 → 색칠 장면 생성 API 호출 -----
+  useEffect(() => {
+    if (!storyText) return;
+
+    async function fetchScenes() {
+      setLoadingScenes(true);
+      setScenesError("");
       try {
         const res = await fetch("/api/generateColoringPages", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ story }),
+          body: JSON.stringify({
+            storyText,
+            maxPages: 6,
+          }),
         });
 
         if (!res.ok) {
           const text = await res.text();
-          throw new Error(`HTTP ${res.status} ${text || ""}`);
+          throw new Error(`HTTP ${res.status} ${text}`);
         }
 
         const data = await res.json();
-        setPages(data.pages || []);
+        setPages(Array.isArray(data.pages) ? data.pages : []);
         setSelectedPageIndex(0);
       } catch (err) {
-        console.error("fetchPages error", err);
-        setPagesError(
-          t.generatingErrorPrefix +
-            (err && err.message ? err.message : "Unknown error")
+        console.error("Error fetching coloring scenes:", err);
+        setScenesError(
+          (err && err.message) || "Unknown error while generating scenes."
         );
       } finally {
-        setPagesLoading(false);
+        setLoadingScenes(false);
       }
     }
 
-    fetchPages();
-  }, [story, t.generatingErrorPrefix]);
+    fetchScenes();
+  }, [storyText]);
 
-  // --- 캔버스 크기/배경 설정 ---
-  useEffect(() => {
-    function resize() {
-      const canvas = canvasRef.current;
-      const wrapper = canvasWrapperRef.current;
-      if (!canvas || !wrapper) return;
+  // ----- 캔버스 초기화 / 리사이즈 -----
+  const resizeCanvas = useCallback(() => {
+    const canvas = canvasRef.current;
+    const container = containerRef.current;
+    if (!canvas || !container) return;
 
-      const rect = wrapper.getBoundingClientRect();
-      const dpr = window.devicePixelRatio || 1;
+    const rect = container.getBoundingClientRect();
+    // 좌우 여백 감안해서 약간 줄여서 사용
+    const width = Math.max(600, rect.width - 40);
+    const height = Math.max(400, rect.height - 80);
 
-      canvas.width = rect.width * dpr;
-      canvas.height = rect.height * dpr;
+    // 실제 픽셀 크기 & 스타일 크기 동시 조정
+    const ratio = window.devicePixelRatio || 1;
+    canvas.width = width * ratio;
+    canvas.height = height * ratio;
+    canvas.style.width = `${width}px`;
+    canvas.style.height = `${height}px`;
 
-      const ctx = canvas.getContext("2d");
-      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-      ctx.fillStyle = "#FFFFFF";
-      ctx.fillRect(0, 0, rect.width, rect.height);
-    }
+    const ctx = canvas.getContext("2d");
+    ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
+    ctx.fillStyle = "#FFFDF8";
+    ctx.fillRect(0, 0, width, height);
 
-    resize();
-    window.addEventListener("resize", resize);
-    return () => window.removeEventListener("resize", resize);
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
   }, []);
 
-  // --- 그리기 핸들러 (단순 브러시) ---
-  function getCanvasPos(evt) {
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    resizeCanvas();
+    window.addEventListener("resize", resizeCanvas);
+    return () => window.removeEventListener("resize", resizeCanvas);
+  }, [resizeCanvas]);
+
+  // ----- 드로잉 핸들러 -----
+  const getCanvasPos = (event) => {
     const canvas = canvasRef.current;
     if (!canvas) return { x: 0, y: 0 };
     const rect = canvas.getBoundingClientRect();
-    let clientX, clientY;
 
-    if ("touches" in evt && evt.touches.length > 0) {
-      clientX = evt.touches[0].clientX;
-      clientY = evt.touches[0].clientY;
-    } else {
-      clientX = evt.clientX;
-      clientY = evt.clientY;
-    }
+    // 마우스/터치 공통 처리
+    const clientX =
+      event.touches && event.touches[0]
+        ? event.touches[0].clientX
+        : event.clientX;
+    const clientY =
+      event.touches && event.touches[0]
+        ? event.touches[0].clientY
+        : event.clientY;
 
     return {
       x: clientX - rect.left,
       y: clientY - rect.top,
     };
-  }
+  };
 
-  function handlePointerDown(evt) {
-    evt.preventDefault();
+  const handlePointerDown = (e) => {
+    e.preventDefault();
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext("2d");
-    const { x, y } = getCanvasPos(evt);
+    const { x, y } = getCanvasPos(e);
+
+    ctx.strokeStyle = brushColor;
+    ctx.lineWidth = brushSize;
+
+    ctx.beginPath();
+    ctx.moveTo(x, y);
 
     isDrawingRef.current = true;
     lastPointRef.current = { x, y };
+  };
 
-    ctx.strokeStyle = currentColor;
-    ctx.lineWidth = 8;
-    ctx.lineCap = "round";
-    ctx.beginPath();
-    ctx.moveTo(x, y);
-  }
-
-  function handlePointerMove(evt) {
+  const handlePointerMove = (e) => {
     if (!isDrawingRef.current) return;
-    evt.preventDefault();
+    e.preventDefault();
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext("2d");
-    const { x, y } = getCanvasPos(evt);
+    const { x, y } = getCanvasPos(e);
+
+    ctx.strokeStyle = brushColor;
+    ctx.lineWidth = brushSize;
 
     ctx.lineTo(x, y);
     ctx.stroke();
+
     lastPointRef.current = { x, y };
-  }
+  };
 
-  function handlePointerUp(evt) {
-    if (!isDrawingRef.current) return;
-    evt.preventDefault();
+  const endDrawing = () => {
     isDrawingRef.current = false;
-  }
+  };
 
-  function handlePointerLeave(evt) {
-    if (!isDrawingRef.current) return;
-    evt.preventDefault();
-    isDrawingRef.current = false;
-  }
+  // ----- 전체 화면 토글 -----
+  const handleFullScreen = () => {
+    if (typeof document === "undefined") return;
+    const elem = containerRef.current;
+    if (!elem) return;
 
-  // --- 저장/불러오기 (localStorage) ---
-  const storageKey = useMemo(
-    () => `storybook-coloring-page-${selectedPageIndex}`,
-    [selectedPageIndex]
-  );
+    if (!document.fullscreenElement) {
+      elem.requestFullscreen?.();
+    } else {
+      document.exitFullscreen?.();
+    }
+  };
 
-  function handleSave() {
+  // ----- 저장/불러오기 -----
+  const handleSave = () => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-    try {
-      const dataUrl = canvas.toDataURL("image/png");
-      window.localStorage.setItem(storageKey, dataUrl);
-      alert("현재 색칠 결과를 저장했습니다.");
-    } catch (err) {
-      console.error("save error", err);
-      alert("저장 중 오류가 발생했습니다.");
-    }
-  }
 
-  function handleLoad() {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const dataUrl = window.localStorage.getItem(storageKey);
-    if (!dataUrl) {
-      alert("저장된 그림이 없습니다.");
-      return;
+    const dataUrl = canvas.toDataURL("image/png");
+    const a = document.createElement("a");
+    a.href = dataUrl;
+    a.download = "coloring-page.png";
+    a.click();
+
+    // 페이지별 상태로도 저장
+    const page = pages[selectedPageIndex];
+    if (page) {
+      setSceneImages((prev) => ({
+        ...prev,
+        [page.id]: dataUrl,
+      }));
     }
-    const img = new Image();
-    img.onload = () => {
-      const ctx = canvas.getContext("2d");
-      // 배경 하양으로 초기화 후 로드
-      const rect = canvas.getBoundingClientRect();
-      ctx.fillStyle = "#FFFFFF";
-      ctx.fillRect(0, 0, rect.width, rect.height);
-      ctx.drawImage(img, 0, 0, rect.width, rect.height);
+  };
+
+  const fileInputRef = useRef(null);
+
+  const handleLoadClick = () => {
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+      fileInputRef.current.click();
+    }
+  };
+
+  const handleFileChange = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = canvasRef.current;
+        if (!canvas) return;
+        const ctx = canvas.getContext("2d");
+
+        // 캔버스 전체를 흰색으로 지운 뒤 그림을 맞춰 넣는다.
+        ctx.fillStyle = "#FFFDF8";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      };
+      img.src = reader.result;
     };
-    img.src = dataUrl;
-  }
+    reader.readAsDataURL(file);
+  };
 
-  // --- 전체 화면 ---
-  function handleFullscreen() {
-    const wrapper = canvasWrapperRef.current;
-    if (!wrapper) return;
+  // ----- 페이지 변경 시 저장된 그림 복원 (가능하면) -----
+  useEffect(() => {
+    const page = pages[selectedPageIndex];
+    const canvas = canvasRef.current;
+    if (!page || !canvas) return;
 
-    if (document.fullscreenElement) {
-      document.exitFullscreen().catch(() => {});
-    } else if (wrapper.requestFullscreen) {
-      wrapper.requestFullscreen().catch(() => {});
+    const saved = sceneImages[page.id];
+    const ctx = canvas.getContext("2d");
+    const ratio = window.devicePixelRatio || 1;
+    const width = canvas.width / ratio;
+    const height = canvas.height / ratio;
+
+    ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
+    ctx.fillStyle = "#FFFDF8";
+    ctx.fillRect(0, 0, width, height);
+
+    if (saved) {
+      const img = new Image();
+      img.onload = () => {
+        ctx.drawImage(img, 0, 0, width, height);
+      };
+      img.src = saved;
     }
-  }
+  }, [pages, selectedPageIndex, sceneImages]);
 
-  // --- 렌더링 ---
-
-  const currentPage = pages[selectedPageIndex] || null;
+  // ----- 렌더링 -----
+  const currentPage = pages[selectedPageIndex];
 
   return (
     <>
       <Head>
-        <title>{t.title}</title>
+        <title>{t.subtitle}</title>
       </Head>
-
-      <div className="coloring-root">
+      <div className="page-root">
         {/* 상단 헤더 */}
-        <header className="coloring-header">
+        <header className="page-header">
           <div>
-            <h1>STEP 3 · 색칠하기</h1>
-            <p className="subtitle">{t.subtitle}</p>
+            <h1>{t.title}</h1>
+            <p style={{ marginTop: 4, color: "#8b6b4a" }}>{t.subtitle}</p>
           </div>
-
           <div className="lang-switch">
             <button
               type="button"
@@ -319,330 +378,302 @@ export default function ColoringPage() {
           </div>
         </header>
 
-        <main className="coloring-main">
-          {/* 좌측: 장면 선택 */}
-          <aside className="scene-list">
-            <h2>{t.sceneSelect}</h2>
+        <section
+          className="step-section"
+          style={{ display: "grid", gridTemplateColumns: "260px 1fr", gap: 24 }}
+        >
+          {/* 좌측: 장면 선택 패널 */}
+          <aside
+            style={{
+              background: "#fbe7c9",
+              borderRadius: 24,
+              padding: "20px 18px",
+              boxShadow: "0 12px 30px rgba(0,0,0,0.04)",
+              display: "flex",
+              flexDirection: "column",
+              minHeight: 480,
+            }}
+          >
+            <div
+              style={{
+                fontWeight: 700,
+                marginBottom: 12,
+                fontSize: 18,
+                color: "#5a3e27",
+              }}
+            >
+              {t.sceneListTitle}
+            </div>
 
-            {pagesLoading && (
-              <p className="scene-placeholder">색칠용 페이지를 준비 중입니다…</p>
+            {loadingScenes ? (
+              <div style={{ fontSize: 14, color: "#7a5b3c" }}>
+                {t.loadingScenes}
+              </div>
+            ) : scenesError ? (
+              <div
+                style={{
+                  fontSize: 13,
+                  color: "#b3261e",
+                  whiteSpace: "pre-wrap",
+                }}
+              >
+                {t.scenesErrorPrefix}
+                {scenesError}
+              </div>
+            ) : pages.length === 0 ? (
+              <div style={{ fontSize: 13, color: "#7a5b3c" }}>{t.noScenes}</div>
+            ) : (
+              <div
+                style={{
+                  marginTop: 4,
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: 8,
+                  overflowY: "auto",
+                  paddingRight: 4,
+                }}
+              >
+                {pages.map((page, idx) => (
+                  <button
+                    key={page.id}
+                    type="button"
+                    onClick={() => setSelectedPageIndex(idx)}
+                    style={{
+                      textAlign: "left",
+                      borderRadius: 16,
+                      padding: "10px 12px",
+                      border:
+                        idx === selectedPageIndex
+                          ? "2px solid #f28c3a"
+                          : "1px solid rgba(0,0,0,0.04)",
+                      background:
+                        idx === selectedPageIndex ? "#ffe8cb" : "#fff7eb",
+                      boxShadow:
+                        idx === selectedPageIndex
+                          ? "0 4px 10px rgba(0,0,0,0.08)"
+                          : "0 2px 6px rgba(0,0,0,0.04)",
+                      cursor: "pointer",
+                    }}
+                  >
+                    <div
+                      style={{
+                        fontSize: 13,
+                        fontWeight: 700,
+                        marginBottom: 4,
+                        color: "#5a3e27",
+                      }}
+                    >
+                      Page {idx + 1} · {page.title}
+                    </div>
+                    {page.caption && (
+                      <div
+                        style={{
+                          fontSize: 12,
+                          color: "#7a5b3c",
+                          lineHeight: 1.3,
+                        }}
+                      >
+                        {page.caption}
+                      </div>
+                    )}
+                  </button>
+                ))}
+              </div>
             )}
 
-            {pagesError && (
-              <p className="scene-error">
-                {pagesError}
-              </p>
-            )}
-
-            {!pagesLoading && !pagesError && pages.length === 0 && (
-              <p className="scene-placeholder">{t.noPages}</p>
-            )}
-
-            <div className="scene-scroll">
-              {pages.map((p, idx) => (
-                <button
-                  key={p.id}
-                  type="button"
-                  className={
-                    "scene-item " +
-                    (idx === selectedPageIndex ? "scene-item-active" : "")
-                  }
-                  onClick={() => setSelectedPageIndex(idx)}
-                >
-                  <div className="scene-thumb">
-                    <span className="scene-page-label">
-                      {t.pageLabel} {idx + 1}
-                    </span>
-                    <p className="scene-text">
-                      {p.text.length > 80
-                        ? p.text.slice(0, 80) + "…"
-                        : p.text}
-                    </p>
-                  </div>
-                </button>
-              ))}
+            <div
+              style={{
+                marginTop: "auto",
+                fontSize: 11,
+                color: "#8b6b4a",
+                paddingTop: 12,
+              }}
+            >
+              {t.tip}
             </div>
           </aside>
 
-          {/* 우측: 캔버스 & 툴 */}
-          <section className="canvas-section">
-            <header className="canvas-header">
-              <div className="canvas-title">
-                {currentPage ? `${t.pageLabel} ${currentPage.id}` : ""}
-              </div>
-
-              <div className="canvas-toolbar">
-                <span className="color-label">{t.colorLabel}</span>
-                <div className="palette">
-                  {PALETTE.map((color) => (
+          {/* 우측: 캔버스 + 도구 */}
+          <div
+            ref={containerRef}
+            style={{
+              background: "#fbe7c9",
+              borderRadius: 24,
+              padding: 18,
+              boxShadow: "0 12px 30px rgba(0,0,0,0.04)",
+              display: "flex",
+              flexDirection: "column",
+              minHeight: 480,
+            }}
+          >
+            {/* 상단 색 선택 & 버튼들 */}
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                marginBottom: 12,
+                gap: 12,
+              }}
+            >
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <span
+                  style={{
+                    fontSize: 14,
+                    fontWeight: 600,
+                    color: "#5a3e27",
+                    marginRight: 4,
+                  }}
+                >
+                  {t.colorsLabel}:
+                </span>
+                <div
+                  style={{
+                    display: "flex",
+                    flexWrap: "wrap",
+                    gap: 6,
+                  }}
+                >
+                  {COLOR_PALETTE.map((color) => (
                     <button
                       key={color}
                       type="button"
-                      className={
-                        "palette-swatch" +
-                        (color === currentColor ? " palette-swatch-active" : "")
-                      }
-                      style={{ backgroundColor: color }}
-                      onClick={() => setCurrentColor(color)}
+                      onClick={() => setBrushColor(color)}
+                      style={{
+                        width: 28,
+                        height: 28,
+                        borderRadius: "999px",
+                        border:
+                          brushColor === color
+                            ? "3px solid #ffffff"
+                            : "2px solid rgba(0,0,0,0.12)",
+                        boxShadow:
+                          brushColor === color
+                            ? "0 0 0 3px rgba(242,140,58,0.8)"
+                            : "0 2px 4px rgba(0,0,0,0.2)",
+                        backgroundColor: color,
+                        cursor: "pointer",
+                      }}
                     />
                   ))}
                 </div>
+              </div>
 
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 8,
+                  flexShrink: 0,
+                }}
+              >
                 <button
                   type="button"
-                  className="tool-button"
-                  onClick={handleFullscreen}
+                  onClick={handleFullScreen}
+                  style={toolButtonStyle}
                 >
-                  {t.fullscreen}
+                  {t.fullScreen}
                 </button>
                 <button
                   type="button"
-                  className="tool-button"
-                  onClick={handleLoad}
+                  onClick={handleLoadClick}
+                  style={toolButtonStyle}
                 >
                   {t.load}
                 </button>
                 <button
                   type="button"
-                  className="tool-button primary"
                   onClick={handleSave}
+                  style={toolButtonStylePrimary}
                 >
                   {t.save}
                 </button>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  style={{ display: "none" }}
+                  onChange={handleFileChange}
+                />
               </div>
-            </header>
-
-            <div
-              ref={canvasWrapperRef}
-              className="canvas-wrapper"
-            >
-              <canvas
-                ref={canvasRef}
-                className="coloring-canvas"
-                onMouseDown={handlePointerDown}
-                onMouseMove={handlePointerMove}
-                onMouseUp={handlePointerUp}
-                onMouseLeave={handlePointerLeave}
-                onTouchStart={handlePointerDown}
-                onTouchMove={handlePointerMove}
-                onTouchEnd={handlePointerUp}
-              />
             </div>
 
-            <p className="tip-text">{t.tip}</p>
-          </section>
-        </main>
+            {/* 캔버스 */}
+            <div
+              style={{
+                flex: 1,
+                background: "#fff7eb",
+                borderRadius: 20,
+                padding: 12,
+                display: "flex",
+                flexDirection: "column",
+              }}
+            >
+              {currentPage && (
+                <div
+                  style={{
+                    marginBottom: 8,
+                    fontSize: 13,
+                    color: "#7a5b3c",
+                  }}
+                >
+                  <strong>
+                    Page {selectedPageIndex + 1} · {currentPage.title}
+                  </strong>
+                  {currentPage.description && (
+                    <span>: {currentPage.description}</span>
+                  )}
+                </div>
+              )}
 
-        <style jsx>{`
-          .coloring-root {
-            min-height: 100vh;
-            background: #fbe5c8;
-            padding: 24px 32px;
-            box-sizing: border-box;
-          }
-          .coloring-header {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            margin-bottom: 24px;
-          }
-          h1 {
-            margin: 0;
-            font-size: 24px;
-            font-weight: 700;
-            color: #5a3a25;
-          }
-          .subtitle {
-            margin: 4px 0 0;
-            color: #a0734b;
-            font-size: 14px;
-          }
-          .lang-switch button {
-            margin-left: 4px;
-            padding: 6px 12px;
-            border-radius: 999px;
-            border: none;
-            background: #f2d3aa;
-            cursor: pointer;
-            font-size: 13px;
-          }
-          .lang-switch button.active {
-            background: #ff8c3f;
-            color: #fff;
-            font-weight: 600;
-          }
-
-          .coloring-main {
-            display: flex;
-            gap: 24px;
-          }
-
-          .scene-list {
-            width: 260px;
-            background: #ffe7c8;
-            border-radius: 20px;
-            padding: 16px;
-            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.06);
-            box-sizing: border-box;
-          }
-          .scene-list h2 {
-            margin: 0 0 12px;
-            font-size: 16px;
-            color: #5a3a25;
-          }
-          .scene-placeholder,
-          .scene-error {
-            font-size: 13px;
-            color: #a0734b;
-            margin: 8px 0;
-          }
-          .scene-error {
-            color: #d9534f;
-          }
-          .scene-scroll {
-            max-height: 540px;
-            overflow-y: auto;
-            padding-right: 4px;
-          }
-          .scene-item {
-            width: 100%;
-            border: none;
-            background: transparent;
-            padding: 0;
-            margin-bottom: 8px;
-            cursor: pointer;
-            text-align: left;
-          }
-          .scene-thumb {
-            border-radius: 14px;
-            background: #fff7ec;
-            padding: 8px 10px;
-            box-shadow: 0 3px 8px rgba(0, 0, 0, 0.05);
-          }
-          .scene-item-active .scene-thumb {
-            border: 2px solid #ff8c3f;
-          }
-          .scene-page-label {
-            display: inline-block;
-            font-size: 12px;
-            font-weight: 600;
-            color: #ff8c3f;
-            margin-bottom: 4px;
-          }
-          .scene-text {
-            margin: 0;
-            font-size: 12px;
-            color: #6b4c35;
-            line-height: 1.3;
-          }
-
-          .canvas-section {
-            flex: 1;
-            background: #ffeede;
-            border-radius: 24px;
-            padding: 16px 18px 20px;
-            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.08);
-            box-sizing: border-box;
-            display: flex;
-            flex-direction: column;
-          }
-          .canvas-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 10px;
-          }
-          .canvas-title {
-            font-size: 15px;
-            font-weight: 600;
-            color: #5a3a25;
-          }
-          .canvas-toolbar {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-          }
-          .color-label {
-            font-size: 13px;
-            color: #6b4c35;
-            margin-right: 4px;
-          }
-          .palette {
-            display: grid;
-            grid-template-columns: repeat(10, 16px);
-            grid-auto-rows: 16px;
-            gap: 4px;
-            margin-right: 8px;
-          }
-          .palette-swatch {
-            width: 16px;
-            height: 16px;
-            border-radius: 50%;
-            border: 2px solid transparent;
-            padding: 0;
-            cursor: pointer;
-          }
-          .palette-swatch-active {
-            border-color: #5a3a25;
-          }
-          .tool-button {
-            padding: 6px 10px;
-            border-radius: 999px;
-            border: none;
-            background: #f2d3aa;
-            cursor: pointer;
-            font-size: 12px;
-            white-space: nowrap;
-          }
-          .tool-button.primary {
-            background: #ff8c3f;
-            color: #fff;
-            font-weight: 600;
-          }
-
-          .canvas-wrapper {
-            flex: 1;
-            margin-top: 8px;
-            border-radius: 20px;
-            background: #ffffff;
-            overflow: hidden;
-            position: relative;
-          }
-          .coloring-canvas {
-            width: 100%;
-            height: 100%;
-            display: block;
-            cursor: crosshair;
-          }
-          .tip-text {
-            margin-top: 8px;
-            font-size: 12px;
-            color: #a0734b;
-          }
-
-          @media (max-width: 900px) {
-            .coloring-main {
-              flex-direction: column;
-            }
-            .scene-list {
-              width: 100%;
-              display: flex;
-              flex-direction: column;
-              max-height: 240px;
-            }
-            .scene-scroll {
-              display: flex;
-              flex-direction: row;
-              overflow-x: auto;
-              max-height: none;
-            }
-            .scene-item {
-              flex: 0 0 180px;
-              margin-right: 8px;
-            }
-          }
-        `}</style>
+              <div
+                style={{
+                  flex: 1,
+                  display: "flex",
+                  justifyContent: "center",
+                  alignItems: "center",
+                }}
+              >
+                <canvas
+                  ref={canvasRef}
+                  style={{
+                    borderRadius: 18,
+                    backgroundColor: "#FFFDF8",
+                    boxShadow: "0 6px 18px rgba(0,0,0,0.12)",
+                    touchAction: "none",
+                  }}
+                  onMouseDown={handlePointerDown}
+                  onMouseMove={handlePointerMove}
+                  onMouseUp={endDrawing}
+                  onMouseLeave={endDrawing}
+                  onTouchStart={handlePointerDown}
+                  onTouchMove={handlePointerMove}
+                  onTouchEnd={endDrawing}
+                />
+              </div>
+            </div>
+          </div>
+        </section>
       </div>
     </>
   );
 }
+
+// 공용 버튼 스타일
+const toolButtonStyle = {
+  padding: "6px 10px",
+  borderRadius: 999,
+  border: "none",
+  background: "#ffe1ba",
+  color: "#5a3e27",
+  fontSize: 12,
+  fontWeight: 600,
+  cursor: "pointer",
+  boxShadow: "0 2px 4px rgba(0,0,0,0.15)",
+};
+
+const toolButtonStylePrimary = {
+  ...toolButtonStyle,
+  background: "#f28c3a",
+  color: "#ffffff",
+};
