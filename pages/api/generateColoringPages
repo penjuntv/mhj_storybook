@@ -1,64 +1,150 @@
 // pages/api/generateColoringPages.js
 
-export default function handler(req, res) {
-  // 이 API는 POST만 허용합니다.
+/**
+ * Generate scene breakdown for coloring pages from a given story.
+ *
+ * Request body (JSON):
+ * {
+ *   storyText: string,
+ *   maxPages?: number (default 6)
+ * }
+ *
+ * Response body (JSON):
+ * {
+ *   pages: [
+ *     {
+ *       id: string,
+ *       index: number, // 0-based
+ *       title: string,
+ *       caption: string,      // 짧은 설명 (썸네일용)
+ *       description: string,  // 그림을 어떻게 그리면 좋을지에 대한 안내 (영문)
+ *       // imageUrl?: string  // 나중에 AI 이미지나 수동 업로드를 연결할 수 있는 필드
+ *     },
+ *     ...
+ *   ]
+ * }
+ */
+
+const OPENAI_API_URL = "https://api.openai.com/v1/chat/completions";
+
+export default async function handler(req, res) {
   if (req.method !== "POST") {
     res.setHeader("Allow", ["POST"]);
-    return res
-      .status(405)
-      .json({ error: "Method Not Allowed. Use POST with { story }." });
+    return res.status(405).json({ error: "Method Not Allowed" });
+  }
+
+  const apiKey = process.env.OPENAI_API_KEY || process.env.OPENAI_API_TOKEN;
+  if (!apiKey) {
+    return res.status(500).json({
+      error:
+        "OPENAI_API_KEY (or OPENAI_API_TOKEN) is not set in environment variables.",
+    });
   }
 
   try {
-    const { story } = req.body || {};
+    const { storyText = "", maxPages = 6 } = req.body || {};
 
-    if (!story || typeof story !== "string") {
-      return res.status(400).json({ error: "Missing or invalid `story`." });
+    if (!storyText || typeof storyText !== "string") {
+      return res.status(400).json({ error: "storyText is required." });
     }
 
-    // 스토리를 문장/문단 단위로 잘라서 4~8페이지 정도로 분할
-    const maxPages = 8;
-    const targetCharsPerPage = Math.max(300, Math.floor(story.length / 6));
+    const clampedPages =
+      typeof maxPages === "number"
+        ? Math.min(Math.max(4, Math.floor(maxPages)), 8)
+        : 6;
 
-    const rawSegments = story
-      .split(/\n{2,}|\r\n{2,}/) // 빈 줄 기준 1차 분할
-      .flatMap((seg) => seg.split(/(?<=[.!?。！？])\s+/)); // 문장 기준 2차 분할
+    const systemPrompt =
+      "You are helping to design coloring pages for a children's English storybook. " +
+      "You will break the story into clear visual scenes.";
 
-    const pages = [];
-    let current = "";
+    const userPrompt = `
+Given the following children's story, break it into ${clampedPages} key visual scenes
+that would work well as black-and-white coloring pages.
 
-    for (const seg of rawSegments) {
-      const trimmed = seg.trim();
-      if (!trimmed) continue;
+Story:
+"""
+${storyText}
+"""
 
-      if (current.length + trimmed.length + 1 > targetCharsPerPage) {
-        if (current) {
-          pages.push(current.trim());
-          current = "";
-        }
+For each scene, output a JSON array with objects of the following shape:
+
+[
+  {
+    "title": "Very short scene title in English, e.g. 'Morning at Home'",
+    "caption": "One short, simple English sentence describing what is happening.",
+    "description": "A detailed English description of what should be drawn in the line-art coloring page. Focus on clear shapes, characters and simple background."
+  },
+  ...
+]
+
+Rules:
+- Use ONLY valid JSON. Do not add any extra text before or after the JSON.
+- Return exactly ${clampedPages} scenes if possible.
+    `.trim();
+
+    const response = await fetch(OPENAI_API_URL, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        model: "gpt-4o-mini",
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: userPrompt },
+        ],
+        temperature: 0.7,
+      }),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error("OpenAI API error (coloringPages):", response.status, errorText);
+      return res.status(500).json({
+        error: "Failed to generate coloring pages scenes from OpenAI.",
+        detail: errorText,
+      });
+    }
+
+    const data = await response.json();
+    const raw = data.choices?.[0]?.message?.content?.trim() || "[]";
+
+    let scenes = [];
+    try {
+      scenes = JSON.parse(raw);
+      if (!Array.isArray(scenes)) {
+        scenes = [];
       }
-      current += (current ? " " : "") + trimmed;
-
-      if (pages.length >= maxPages) break;
-    }
-    if (current && pages.length < maxPages) {
-      pages.push(current.trim());
+    } catch (e) {
+      console.warn("Failed to parse scenes JSON, fallback to empty list:", e);
+      scenes = [];
     }
 
-    // 최소 1장은 보장
-    if (pages.length === 0) {
-      pages.push(story.slice(0, targetCharsPerPage));
+    // Fallback: 최소한 4개의 기본 장면이라도 만들어 둔다.
+    if (scenes.length === 0) {
+      scenes = Array.from({ length: clampedPages }).map((_, idx) => ({
+        title: `Page ${idx + 1}`,
+        caption: "Color this scene from the story.",
+        description:
+          "A simple scene from the story. Draw the main character, a clear background and some large objects that are easy for young children to color.",
+      }));
     }
 
-    const result = pages.map((text, idx) => ({
-      id: idx + 1,
-      title: `Page ${idx + 1}`,
-      text,
+    const pages = scenes.slice(0, clampedPages).map((scene, index) => ({
+      id: `page-${index + 1}`,
+      index,
+      title: scene.title || `Page ${index + 1}`,
+      caption: scene.caption || "",
+      description: scene.description || "",
+      // imageUrl: undefined,   // 나중에 AI 이미지나 수동 업로드 연결용
     }));
 
-    return res.status(200).json({ pages: result });
+    return res.status(200).json({ pages });
   } catch (err) {
     console.error("generateColoringPages error:", err);
-    return res.status(500).json({ error: "Internal server error" });
+    return res.status(500).json({
+      error: "Unexpected server error while generating coloring pages scenes.",
+    });
   }
 }
