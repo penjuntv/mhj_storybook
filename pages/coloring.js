@@ -1,238 +1,297 @@
 // pages/coloring.js
-import { useState, useEffect, useMemo, useRef, useCallback } from "react";
+
+import { useEffect, useMemo, useRef, useState } from "react";
 import Head from "next/head";
 import { useRouter } from "next/router";
-import SceneSidebar from "../components/coloring/SceneSidebar";
-import ColorPalette from "../components/coloring/ColorPalette";
-import Toolbar from "../components/coloring/Toolbar";
-import ColoringCanvas from "../components/coloring/ColoringCanvas";
-import useColoringPages from "../hooks/useColoringPages";
 
-// Step3 전용 다국어 텍스트
+// 간단 I18N (필요하면 Step2와 맞춰 확장 가능)
 const I18N = {
   ko: {
-    pageTitle: "STEP 3 · 색칠하기",
-    appTitle: "AI Storybook – 색칠하기",
+    title: "STEP 3 · 색칠하기 | AI Storybook – 색칠하기",
+    subtitle: "AI Storybook – 색칠하기",
+    sceneSelect: "장면 선택",
+    generatingErrorPrefix: "색칠용 그림을 생성하는 중 오류가 발생했습니다: ",
     noPages: "아직 생성된 그림이 없습니다.",
-    tip: "팁: 태블릿/스마트폰에서는 가로 화면으로 돌리면 색칠하기 캔버스를 더 크게 볼 수 있습니다.",
-    sceneSelectLabel: "장면 선택",
-    loading: "AI가 색칠용 그림을 만드는 중입니다…",
-    errorPrefix: "색칠용 그림을 생성하는 중 오류가 발생했습니다: ",
     pageLabel: "Page",
     colorLabel: "색 선택:",
     fullscreen: "전체 화면",
-    save: "저장",
     load: "불러오기",
+    save: "저장",
+    tip: "팁: 태블릿/스마트폰에서는 가로 화면으로 돌리면 색칠하기 캔버스를 더 크게 볼 수 있습니다.",
   },
   en: {
-    pageTitle: "STEP 3 · Coloring",
-    appTitle: "AI Storybook – Coloring",
-    noPages: "No coloring pages have been generated yet.",
-    tip: "Tip: Rotate your tablet/phone to landscape to see a larger canvas.",
-    sceneSelectLabel: "Scenes",
-    loading: "AI is generating coloring pages…",
-    errorPrefix: "Error while generating coloring pages: ",
+    title: "STEP 3 · Coloring | AI Storybook – Coloring",
+    subtitle: "AI Storybook – Coloring",
+    sceneSelect: "Scenes",
+    generatingErrorPrefix: "Error while generating coloring pages: ",
+    noPages: "No pages generated yet.",
     pageLabel: "Page",
     colorLabel: "Color:",
     fullscreen: "Fullscreen",
-    save: "Save",
     load: "Load",
+    save: "Save",
+    tip: "Tip: On tablets/phones, rotate to landscape for a larger coloring canvas.",
   },
   zh: {
-    pageTitle: "STEP 3 · 填色",
-    appTitle: "AI 故事书 – 填色",
-    noPages: "还没有生成可以填色的画面。",
-    tip: "提示：在平板/手机上横屏可以看到更大的画布。",
-    sceneSelectLabel: "场景选择",
-    loading: "AI 正在生成填色画面…",
-    errorPrefix: "生成填色画面时出错：",
+    title: "STEP 3 · 填色 | AI 故事书 – 填色",
+    subtitle: "AI 故事书 – 填色",
+    sceneSelect: "场景选择",
+    generatingErrorPrefix: "生成填色图片时出错：",
+    noPages: "还没有生成任何页面。",
     pageLabel: "Page",
-    colorLabel: "颜色：",
+    colorLabel: "颜色选择：",
     fullscreen: "全屏",
+    load: "读取",
     save: "保存",
-    load: "载入",
+    tip: "提示：在平板/手机上横屏可以看到更大的画布。",
   },
 };
 
-// 20색 팔레트 (2줄×10개)
-export const PALETTE_COLORS = [
+// 20색 팔레트
+const PALETTE = [
   "#000000",
-  "#ffffff",
-  "#f44336",
-  "#e91e63",
-  "#9c27b0",
-  "#3f51b5",
-  "#2196f3",
-  "#00bcd4",
-  "#4caf50",
-  "#8bc34a",
-  "#ffeb3b",
-  "#ffc107",
-  "#ff9800",
-  "#ff5722",
-  "#795548",
-  "#9e9e9e",
-  "#607d8b",
-  "#c2185b",
-  "#7b1fa2",
-  "#303f9f",
+  "#663300",
+  "#FF0000",
+  "#FFA500",
+  "#FFD700",
+  "#008000",
+  "#00CED1",
+  "#0000FF",
+  "#800080",
+  "#FFC0CB",
+  "#FFFFFF",
+  "#8B4513",
+  "#FF7F50",
+  "#FFFF00",
+  "#ADFF2F",
+  "#40E0D0",
+  "#1E90FF",
+  "#4B0082",
+  "#FF69B4",
+  "#A9A9A9",
 ];
 
-// 간단 해시 (스토리+테마 기준으로 저장 키 만들기)
-function simpleHash(str) {
-  let hash = 0;
-  if (!str) return "0";
-  for (let i = 0; i < str.length; i += 1) {
-    hash = (hash << 5) - hash + str.charCodeAt(i);
-    hash |= 0;
+function decodeStoryParam(raw) {
+  if (!raw) return "";
+  if (Array.isArray(raw)) raw = raw[0];
+  try {
+    return decodeURIComponent(raw);
+  } catch {
+    return String(raw);
   }
-  return String(hash);
 }
 
 export default function ColoringPage() {
   const router = useRouter();
-  const { story = "", themeKey = "everyday", locale: queryLocale } = router.query;
+  const [locale, setLocale] = useState("ko");
+  const t = useMemo(() => I18N[locale], [locale]);
 
-  const [locale, setLocale] = useState(
-    typeof queryLocale === "string" ? queryLocale : "ko"
-  );
-  const t = useMemo(() => I18N[locale] || I18N.ko, [locale]);
+  const rawStory = router.query.story;
+  const story = useMemo(() => decodeStoryParam(rawStory), [rawStory]);
 
-  const fullStory = typeof story === "string" ? story : "";
-  const storyHash = simpleHash(fullStory + "|" + themeKey);
+  const [pages, setPages] = useState([]); // {id,title,text}[]
+  const [pagesLoading, setPagesLoading] = useState(false);
+  const [pagesError, setPagesError] = useState("");
 
-  const {
-    pages,
-    loading: pagesLoading,
-    error: pagesError,
-  } = useColoringPages({
-    story: fullStory,
-    themeKey: typeof themeKey === "string" ? themeKey : "everyday",
-    locale,
-  });
+  const [selectedPageIndex, setSelectedPageIndex] = useState(0);
 
-  const [selectedPageId, setSelectedPageId] = useState(null);
-  const [selectedColor, setSelectedColor] = useState(PALETTE_COLORS[2]);
-  const [savedImages, setSavedImages] = useState({}); // pageId -> dataURL
+  const [currentColor, setCurrentColor] = useState(PALETTE[2]); // 기본 빨강
+  const canvasRef = useRef(null);
+  const canvasWrapperRef = useRef(null);
+  const isDrawingRef = useRef(false);
+  const lastPointRef = useRef({ x: 0, y: 0 });
 
-  const rootRef = useRef(null);
-  const [isFullscreen, setIsFullscreen] = useState(false);
-
-  // 페이지 목록이 생기면 첫 페이지 자동 선택
+  // --- 스토리 기반 페이지 생성 요청 ---
   useEffect(() => {
-    if (pages && pages.length > 0 && selectedPageId == null) {
-      setSelectedPageId(pages[0].id);
-    }
-  }, [pages, selectedPageId]);
+    if (!story) return;
 
-  // localStorage에서 불러오기
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    const key = `mhj-storybook-coloring-${storyHash}`;
-    try {
-      const raw = window.localStorage.getItem(key);
-      if (!raw) return;
-      const parsed = JSON.parse(raw);
-      if (parsed && parsed.images) {
-        setSavedImages(parsed.images);
+    async function fetchPages() {
+      setPagesLoading(true);
+      setPagesError("");
+
+      try {
+        const res = await fetch("/api/generateColoringPages", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ story }),
+        });
+
+        if (!res.ok) {
+          const text = await res.text();
+          throw new Error(`HTTP ${res.status} ${text || ""}`);
+        }
+
+        const data = await res.json();
+        setPages(data.pages || []);
+        setSelectedPageIndex(0);
+      } catch (err) {
+        console.error("fetchPages error", err);
+        setPagesError(
+          t.generatingErrorPrefix +
+            (err && err.message ? err.message : "Unknown error")
+        );
+      } finally {
+        setPagesLoading(false);
       }
-    } catch {
-      // ignore
     }
-  }, [storyHash]);
 
-  const handleSaveImageForPage = useCallback((pageId, dataUrl) => {
-    setSavedImages((prev) => ({
-      ...prev,
-      [pageId]: dataUrl,
-    }));
+    fetchPages();
+  }, [story, t.generatingErrorPrefix]);
+
+  // --- 캔버스 크기/배경 설정 ---
+  useEffect(() => {
+    function resize() {
+      const canvas = canvasRef.current;
+      const wrapper = canvasWrapperRef.current;
+      if (!canvas || !wrapper) return;
+
+      const rect = wrapper.getBoundingClientRect();
+      const dpr = window.devicePixelRatio || 1;
+
+      canvas.width = rect.width * dpr;
+      canvas.height = rect.height * dpr;
+
+      const ctx = canvas.getContext("2d");
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      ctx.fillStyle = "#FFFFFF";
+      ctx.fillRect(0, 0, rect.width, rect.height);
+    }
+
+    resize();
+    window.addEventListener("resize", resize);
+    return () => window.removeEventListener("resize", resize);
   }, []);
 
-  const handleSaveAll = useCallback(() => {
-    if (typeof window === "undefined") return;
-    const key = `mhj-storybook-coloring-${storyHash}`;
+  // --- 그리기 핸들러 (단순 브러시) ---
+  function getCanvasPos(evt) {
+    const canvas = canvasRef.current;
+    if (!canvas) return { x: 0, y: 0 };
+    const rect = canvas.getBoundingClientRect();
+    let clientX, clientY;
+
+    if ("touches" in evt && evt.touches.length > 0) {
+      clientX = evt.touches[0].clientX;
+      clientY = evt.touches[0].clientY;
+    } else {
+      clientX = evt.clientX;
+      clientY = evt.clientY;
+    }
+
+    return {
+      x: clientX - rect.left,
+      y: clientY - rect.top,
+    };
+  }
+
+  function handlePointerDown(evt) {
+    evt.preventDefault();
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    const { x, y } = getCanvasPos(evt);
+
+    isDrawingRef.current = true;
+    lastPointRef.current = { x, y };
+
+    ctx.strokeStyle = currentColor;
+    ctx.lineWidth = 8;
+    ctx.lineCap = "round";
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+  }
+
+  function handlePointerMove(evt) {
+    if (!isDrawingRef.current) return;
+    evt.preventDefault();
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    const { x, y } = getCanvasPos(evt);
+
+    ctx.lineTo(x, y);
+    ctx.stroke();
+    lastPointRef.current = { x, y };
+  }
+
+  function handlePointerUp(evt) {
+    if (!isDrawingRef.current) return;
+    evt.preventDefault();
+    isDrawingRef.current = false;
+  }
+
+  function handlePointerLeave(evt) {
+    if (!isDrawingRef.current) return;
+    evt.preventDefault();
+    isDrawingRef.current = false;
+  }
+
+  // --- 저장/불러오기 (localStorage) ---
+  const storageKey = useMemo(
+    () => `storybook-coloring-page-${selectedPageIndex}`,
+    [selectedPageIndex]
+  );
+
+  function handleSave() {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
     try {
-      const payload = {
-        version: 1,
-        storyHash,
-        images: savedImages,
-        updatedAt: new Date().toISOString(),
-      };
-      window.localStorage.setItem(key, JSON.stringify(payload));
-      alert("색칠한 그림이 저장되었습니다.");
+      const dataUrl = canvas.toDataURL("image/png");
+      window.localStorage.setItem(storageKey, dataUrl);
+      alert("현재 색칠 결과를 저장했습니다.");
     } catch (err) {
-      console.error(err);
+      console.error("save error", err);
       alert("저장 중 오류가 발생했습니다.");
     }
-  }, [savedImages, storyHash]);
+  }
 
-  const handleLoadAll = useCallback(() => {
-    if (typeof window === "undefined") return;
-    const key = `mhj-storybook-coloring-${storyHash}`;
-    try {
-      const raw = window.localStorage.getItem(key);
-      if (!raw) {
-        alert("저장된 색칠 내역이 없습니다.");
-        return;
-      }
-      const parsed = JSON.parse(raw);
-      if (parsed && parsed.images) {
-        setSavedImages(parsed.images);
-        alert("저장된 색칠 내역을 불러왔습니다.");
-      } else {
-        alert("불러올 수 있는 데이터가 없습니다.");
-      }
-    } catch (err) {
-      console.error(err);
-      alert("불러오기 중 오류가 발생했습니다.");
+  function handleLoad() {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const dataUrl = window.localStorage.getItem(storageKey);
+    if (!dataUrl) {
+      alert("저장된 그림이 없습니다.");
+      return;
     }
-  }, [storyHash]);
-
-  // 전체 화면 토글
-  const toggleFullscreen = useCallback(() => {
-    if (typeof document === "undefined") return;
-    if (!isFullscreen) {
-      if (rootRef.current && rootRef.current.requestFullscreen) {
-        rootRef.current.requestFullscreen();
-        setIsFullscreen(true);
-      }
-    } else {
-      if (document.fullscreenElement && document.exitFullscreen) {
-        document.exitFullscreen();
-        setIsFullscreen(false);
-      }
-    }
-  }, [isFullscreen]);
-
-  // 브라우저에서 직접 전체화면 종료했을 때 상태 동기화
-  useEffect(() => {
-    if (typeof document === "undefined") return;
-    const handler = () => {
-      if (!document.fullscreenElement) {
-        setIsFullscreen(false);
-      }
+    const img = new Image();
+    img.onload = () => {
+      const ctx = canvas.getContext("2d");
+      // 배경 하양으로 초기화 후 로드
+      const rect = canvas.getBoundingClientRect();
+      ctx.fillStyle = "#FFFFFF";
+      ctx.fillRect(0, 0, rect.width, rect.height);
+      ctx.drawImage(img, 0, 0, rect.width, rect.height);
     };
-    document.addEventListener("fullscreenchange", handler);
-    return () => document.removeEventListener("fullscreenchange", handler);
-  }, []);
+    img.src = dataUrl;
+  }
 
-  const selectedPage =
-    pages && pages.length > 0 && selectedPageId != null
-      ? pages.find((p) => p.id === selectedPageId)
-      : null;
+  // --- 전체 화면 ---
+  function handleFullscreen() {
+    const wrapper = canvasWrapperRef.current;
+    if (!wrapper) return;
+
+    if (document.fullscreenElement) {
+      document.exitFullscreen().catch(() => {});
+    } else if (wrapper.requestFullscreen) {
+      wrapper.requestFullscreen().catch(() => {});
+    }
+  }
+
+  // --- 렌더링 ---
+
+  const currentPage = pages[selectedPageIndex] || null;
 
   return (
     <>
       <Head>
-        <title>{t.appTitle}</title>
+        <title>{t.title}</title>
       </Head>
 
-      <div className={`coloring-root ${isFullscreen ? "fullscreen" : ""}`} ref={rootRef}>
+      <div className="coloring-root">
         {/* 상단 헤더 */}
         <header className="coloring-header">
-          <div className="coloring-header-left">
-            <h1 className="coloring-main-title">{t.pageTitle}</h1>
-            <p className="coloring-sub-title">{t.appTitle}</p>
+          <div>
+            <h1>STEP 3 · 색칠하기</h1>
+            <p className="subtitle">{t.subtitle}</p>
           </div>
 
           <div className="lang-switch">
@@ -261,90 +320,328 @@ export default function ColoringPage() {
         </header>
 
         <main className="coloring-main">
-          {/* 좌측 장면 선택 */}
-          <aside className="coloring-sidebar">
-            <h2 className="sidebar-title">{t.sceneSelectLabel}</h2>
+          {/* 좌측: 장면 선택 */}
+          <aside className="scene-list">
+            <h2>{t.sceneSelect}</h2>
 
             {pagesLoading && (
-              <div className="sidebar-placeholder">{t.loading}</div>
+              <p className="scene-placeholder">색칠용 페이지를 준비 중입니다…</p>
             )}
 
             {pagesError && (
-              <div className="sidebar-error">
-                {t.errorPrefix}
+              <p className="scene-error">
                 {pagesError}
-              </div>
+              </p>
             )}
 
-            {!pagesLoading && !pagesError && (!pages || pages.length === 0) && (
-              <div className="sidebar-placeholder">{t.noPages}</div>
+            {!pagesLoading && !pagesError && pages.length === 0 && (
+              <p className="scene-placeholder">{t.noPages}</p>
             )}
 
-            {!pagesLoading && !pagesError && pages && pages.length > 0 && (
-              <SceneSidebar
-                pages={pages}
-                selectedPageId={selectedPageId}
-                onSelectPage={setSelectedPageId}
-                locale={locale}
-              />
-            )}
+            <div className="scene-scroll">
+              {pages.map((p, idx) => (
+                <button
+                  key={p.id}
+                  type="button"
+                  className={
+                    "scene-item " +
+                    (idx === selectedPageIndex ? "scene-item-active" : "")
+                  }
+                  onClick={() => setSelectedPageIndex(idx)}
+                >
+                  <div className="scene-thumb">
+                    <span className="scene-page-label">
+                      {t.pageLabel} {idx + 1}
+                    </span>
+                    <p className="scene-text">
+                      {p.text.length > 80
+                        ? p.text.slice(0, 80) + "…"
+                        : p.text}
+                    </p>
+                  </div>
+                </button>
+              ))}
+            </div>
           </aside>
 
-          {/* 중앙/우측: 캔버스 + 팔레트 + 툴바 */}
-          <section className="coloring-workspace">
-            <Toolbar
-              onToggleFullscreen={toggleFullscreen}
-              onSaveAll={handleSaveAll}
-              onLoadAll={handleLoadAll}
-              isFullscreen={isFullscreen}
-              labels={{
-                fullscreen: t.fullscreen,
-                save: t.save,
-                load: t.load,
-              }}
-            />
-
-            <div className="coloring-canvas-block">
-              <div className="coloring-canvas-header">
-                <div className="canvas-page-title">
-                  {selectedPage
-                    ? `${t.pageLabel} ${selectedPage.id}`
-                    : t.noPages}
-                </div>
-                {selectedPage && (
-                  <div className="canvas-page-caption">
-                    {selectedPage.summary}
-                  </div>
-                )}
+          {/* 우측: 캔버스 & 툴 */}
+          <section className="canvas-section">
+            <header className="canvas-header">
+              <div className="canvas-title">
+                {currentPage ? `${t.pageLabel} ${currentPage.id}` : ""}
               </div>
 
-              <div className="coloring-canvas-and-palette">
-                <div className="coloring-canvas-wrapper">
-                  <ColoringCanvas
-                    key={selectedPage ? selectedPage.id : "empty"}
-                    page={selectedPage}
-                    selectedColor={selectedColor}
-                    savedImage={selectedPage ? savedImages[selectedPage.id] : null}
-                    onChangeImage={handleSaveImageForPage}
-                  />
+              <div className="canvas-toolbar">
+                <span className="color-label">{t.colorLabel}</span>
+                <div className="palette">
+                  {PALETTE.map((color) => (
+                    <button
+                      key={color}
+                      type="button"
+                      className={
+                        "palette-swatch" +
+                        (color === currentColor ? " palette-swatch-active" : "")
+                      }
+                      style={{ backgroundColor: color }}
+                      onClick={() => setCurrentColor(color)}
+                    />
+                  ))}
                 </div>
 
-                <div className="coloring-palette-wrapper">
-                  <div className="palette-label">{t.colorLabel}</div>
-                  <ColorPalette
-                    colors={PALETTE_COLORS}
-                    selectedColor={selectedColor}
-                    onSelectColor={setSelectedColor}
-                  />
-                </div>
+                <button
+                  type="button"
+                  className="tool-button"
+                  onClick={handleFullscreen}
+                >
+                  {t.fullscreen}
+                </button>
+                <button
+                  type="button"
+                  className="tool-button"
+                  onClick={handleLoad}
+                >
+                  {t.load}
+                </button>
+                <button
+                  type="button"
+                  className="tool-button primary"
+                  onClick={handleSave}
+                >
+                  {t.save}
+                </button>
               </div>
+            </header>
+
+            <div
+              ref={canvasWrapperRef}
+              className="canvas-wrapper"
+            >
+              <canvas
+                ref={canvasRef}
+                className="coloring-canvas"
+                onMouseDown={handlePointerDown}
+                onMouseMove={handlePointerMove}
+                onMouseUp={handlePointerUp}
+                onMouseLeave={handlePointerLeave}
+                onTouchStart={handlePointerDown}
+                onTouchMove={handlePointerMove}
+                onTouchEnd={handlePointerUp}
+              />
             </div>
+
+            <p className="tip-text">{t.tip}</p>
           </section>
         </main>
 
-        <footer className="coloring-footer">
-          <p>{t.tip}</p>
-        </footer>
+        <style jsx>{`
+          .coloring-root {
+            min-height: 100vh;
+            background: #fbe5c8;
+            padding: 24px 32px;
+            box-sizing: border-box;
+          }
+          .coloring-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 24px;
+          }
+          h1 {
+            margin: 0;
+            font-size: 24px;
+            font-weight: 700;
+            color: #5a3a25;
+          }
+          .subtitle {
+            margin: 4px 0 0;
+            color: #a0734b;
+            font-size: 14px;
+          }
+          .lang-switch button {
+            margin-left: 4px;
+            padding: 6px 12px;
+            border-radius: 999px;
+            border: none;
+            background: #f2d3aa;
+            cursor: pointer;
+            font-size: 13px;
+          }
+          .lang-switch button.active {
+            background: #ff8c3f;
+            color: #fff;
+            font-weight: 600;
+          }
+
+          .coloring-main {
+            display: flex;
+            gap: 24px;
+          }
+
+          .scene-list {
+            width: 260px;
+            background: #ffe7c8;
+            border-radius: 20px;
+            padding: 16px;
+            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.06);
+            box-sizing: border-box;
+          }
+          .scene-list h2 {
+            margin: 0 0 12px;
+            font-size: 16px;
+            color: #5a3a25;
+          }
+          .scene-placeholder,
+          .scene-error {
+            font-size: 13px;
+            color: #a0734b;
+            margin: 8px 0;
+          }
+          .scene-error {
+            color: #d9534f;
+          }
+          .scene-scroll {
+            max-height: 540px;
+            overflow-y: auto;
+            padding-right: 4px;
+          }
+          .scene-item {
+            width: 100%;
+            border: none;
+            background: transparent;
+            padding: 0;
+            margin-bottom: 8px;
+            cursor: pointer;
+            text-align: left;
+          }
+          .scene-thumb {
+            border-radius: 14px;
+            background: #fff7ec;
+            padding: 8px 10px;
+            box-shadow: 0 3px 8px rgba(0, 0, 0, 0.05);
+          }
+          .scene-item-active .scene-thumb {
+            border: 2px solid #ff8c3f;
+          }
+          .scene-page-label {
+            display: inline-block;
+            font-size: 12px;
+            font-weight: 600;
+            color: #ff8c3f;
+            margin-bottom: 4px;
+          }
+          .scene-text {
+            margin: 0;
+            font-size: 12px;
+            color: #6b4c35;
+            line-height: 1.3;
+          }
+
+          .canvas-section {
+            flex: 1;
+            background: #ffeede;
+            border-radius: 24px;
+            padding: 16px 18px 20px;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.08);
+            box-sizing: border-box;
+            display: flex;
+            flex-direction: column;
+          }
+          .canvas-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+          }
+          .canvas-title {
+            font-size: 15px;
+            font-weight: 600;
+            color: #5a3a25;
+          }
+          .canvas-toolbar {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+          }
+          .color-label {
+            font-size: 13px;
+            color: #6b4c35;
+            margin-right: 4px;
+          }
+          .palette {
+            display: grid;
+            grid-template-columns: repeat(10, 16px);
+            grid-auto-rows: 16px;
+            gap: 4px;
+            margin-right: 8px;
+          }
+          .palette-swatch {
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            border: 2px solid transparent;
+            padding: 0;
+            cursor: pointer;
+          }
+          .palette-swatch-active {
+            border-color: #5a3a25;
+          }
+          .tool-button {
+            padding: 6px 10px;
+            border-radius: 999px;
+            border: none;
+            background: #f2d3aa;
+            cursor: pointer;
+            font-size: 12px;
+            white-space: nowrap;
+          }
+          .tool-button.primary {
+            background: #ff8c3f;
+            color: #fff;
+            font-weight: 600;
+          }
+
+          .canvas-wrapper {
+            flex: 1;
+            margin-top: 8px;
+            border-radius: 20px;
+            background: #ffffff;
+            overflow: hidden;
+            position: relative;
+          }
+          .coloring-canvas {
+            width: 100%;
+            height: 100%;
+            display: block;
+            cursor: crosshair;
+          }
+          .tip-text {
+            margin-top: 8px;
+            font-size: 12px;
+            color: #a0734b;
+          }
+
+          @media (max-width: 900px) {
+            .coloring-main {
+              flex-direction: column;
+            }
+            .scene-list {
+              width: 100%;
+              display: flex;
+              flex-direction: column;
+              max-height: 240px;
+            }
+            .scene-scroll {
+              display: flex;
+              flex-direction: row;
+              overflow-x: auto;
+              max-height: none;
+            }
+            .scene-item {
+              flex: 0 0 180px;
+              margin-right: 8px;
+            }
+          }
+        `}</style>
       </div>
     </>
   );
