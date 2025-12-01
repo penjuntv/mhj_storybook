@@ -3,7 +3,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/router";
-import { loadLastStoryFromStorage } from "../lib/storyStorage";
+import { loadStory } from "../utils/storyStorage";
 
 import ColoringCanvas from "../components/coloring/ColoringCanvas";
 import ColorPalette from "../components/coloring/ColorPalette";
@@ -16,8 +16,9 @@ export default function ColoringPage() {
   const [story, setStory] = useState("");
 
   useEffect(() => {
-    const data = loadLastStoryFromStorage();
-    console.log("[ColoringPage] loadLastStoryFromStorage result:", data);
+    // 브라우저에서만 localStorage 접근
+    const data = loadStory();
+    console.log("[ColoringPage] loadStory result:", data);
 
     if (data && typeof data.story === "string") {
       setStory(data.story);
@@ -29,10 +30,10 @@ export default function ColoringPage() {
   if (loading) {
     return (
       <main className="coloring-page">
-        <div className="coloring-header">
+        <header className="coloring-header">
           <h1>Step 3 · 색칠 놀이</h1>
           <p>저장된 동화를 확인하는 중입니다…</p>
-        </div>
+        </header>
       </main>
     );
   }
@@ -86,6 +87,7 @@ export default function ColoringPage() {
       </header>
 
       <section className="coloring-layout">
+        {/* 왼쪽: 장면/페이지 썸네일 영역 (추후 AI 그림 생성 연결 예정) */}
         <aside className="coloring-sidebar">
           <h2 className="sidebar-title">장면 선택</h2>
           <p className="sidebar-helper">
@@ -94,6 +96,7 @@ export default function ColoringPage() {
           </p>
         </aside>
 
+        {/* 오른쪽: 색 선택 + 캔버스 */}
         <div className="coloring-main">
           <div className="coloring-toolbar-row">
             <ColorPalette />
