@@ -1,39 +1,47 @@
 // components/coloring/ColorPalette.js
-// 3~5세 아이용 기본 색 팔레트 – 컴포넌트 안에서 자체로 완결
+// 3~5세 아이 기준, 크고 단순한 색 버튼 팔레트
 
-import React from "react";
-
-export const DEFAULT_COLORS = [
-  "#000000", // black
-  "#FF6B6B", // red
-  "#FF9F43", // orange
-  "#FFD93D", // yellow
-  "#1DD1A1", // green
-  "#54A0FF", // blue
-  "#5F27CD", // indigo
-  "#FF6B81", // pink
-  "#FFFFFF", // white
-  "#A3A3A3", // gray
-];
-
-export default function ColorPalette({ selectedColor, onChangeColor }) {
-  const palette = DEFAULT_COLORS; // 항상 정의된 배열
+export default function ColorPalette({ selectedColor, onSelectColor }) {
+  // 고정 팔레트 18색
+  const COLORS = [
+    "#000000",
+    "#FF4B4B",
+    "#FF9F1C",
+    "#FFD93D",
+    "#2ECC71",
+    "#1ABC9C",
+    "#3498DB",
+    "#6C5CE7",
+    "#9B59B6",
+    "#E84393",
+    "#FF6F91",
+    "#FF9671",
+    "#FFC75F",
+    "#F9F871",
+    "#A3CB38",
+    "#38ADA9",
+    "#74B9FF",
+    "#FFFFFF",
+  ];
 
   return (
     <div className="color-palette">
-      {palette.map((color) => (
-        <button
-          key={color}
-          type="button"
-          className={
-            "color-swatch" +
-            (selectedColor === color ? " color-swatch--active" : "")
-          }
-          style={{ backgroundColor: color }}
-          onClick={() => onChangeColor && onChangeColor(color)}
-          aria-label={`색 선택: ${color}`}
-        />
-      ))}
+      <span className="color-palette-label">색 선택:</span>
+      <div className="color-palette-row">
+        {COLORS.map((color) => {
+          const isActive = color === selectedColor;
+          return (
+            <button
+              key={color}
+              type="button"
+              className={`color-swatch ${isActive ? "color-swatch--active" : ""}`}
+              style={{ backgroundColor: color }}
+              onClick={() => onSelectColor?.(color)}
+              aria-label={`색상 ${color}`}
+            />
+          );
+        })}
+      </div>
     </div>
   );
 }
