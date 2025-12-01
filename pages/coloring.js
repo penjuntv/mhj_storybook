@@ -1,63 +1,73 @@
 // pages/coloring.js
-// STEP 3: 저장된 동화를 바탕으로 색칠 놀이 화면을 보여주는 페이지
-// 1차 목표: 스토리 로딩 + 빈 색칠 UI 뼈대를 100% 안정적으로 띄우는 것
+// STEP 3 · 색칠 놀이 – 안정적인 뼈대 버전
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/router";
-
 import { loadStory } from "../utils/storyStorage";
 
 import ColoringCanvas from "../components/coloring/ColoringCanvas";
-import ColorPalette from "../components/coloring/ColorPalette";
+import ColorPalette, {
+  DEFAULT_COLORS,
+} from "../components/coloring/ColorPalette";
 import Toolbar from "../components/coloring/Toolbar";
+
+function safeDecode(value) {
+  if (typeof value !== "string") return "";
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return value;
+  }
+}
 
 export default function ColoringPage() {
   const router = useRouter();
 
-  const [loading, setLoading] = useState(true);
+  const [isReady, setIsReady] = useState(false);
   const [story, setStory] = useState("");
+  const [currentColor, setCurrentColor] = useState(DEFAULT_COLORS[1]); // 기본 빨간색
+  const canvasRef = useRef(null);
 
-  // 1) localStorage에 저장된 마지막 동화 불러오기
-  // 2) 쿼리스트링에 story 가 있으면 그것으로 덮어쓰기 (가장 최신)
+  // 1) 스토리 불러오기: 쿼리스트링 > localStorage 순서
   useEffect(() => {
-    try {
-      // 1) localStorage에서 읽기
-      const stored = typeof window !== "undefined" ? loadStory() : null;
+    if (typeof window === "undefined") return;
 
-      // 2) 쿼리에서 넘어온 story(있으면 더 우선)
-      let queryStory = "";
-      if (router && router.query && typeof router.query.story === "string") {
-        // 프레이머/넥스트에서 인코딩된 문자열이므로 decodeURIComponent
-        try {
-          queryStory = decodeURIComponent(router.query.story);
-        } catch {
-          queryStory = router.query.story;
-        }
-      }
+    // 1) 쿼리에서 가져오기
+    const queryStoryRaw =
+      typeof router.query.story === "string" ? router.query.story : "";
+    const queryStory = safeDecode(queryStoryRaw);
 
-      // 최종 스토리 결정
-      const finalStory =
-        (queryStory && queryStory.trim().length > 0 && queryStory) ||
-        (stored && typeof stored.story === "string" ? stored.story : "");
+    // 2) localStorage에서 가져오기
+    const stored = loadStory(); // { story, savedAt } 또는 null
+    const storedStory =
+      stored && typeof stored.story === "string" ? stored.story : "";
 
-      console.log(
-        "[ColoringPage] Final story after storage + query merge:",
-        finalStory
-      );
+    // 3) 최종 선택: 쿼리 > localStorage
+    const finalStory =
+      (queryStory && queryStory.trim().length > 0 && queryStory) ||
+      (storedStory && storedStory.trim().length > 0 && storedStory) ||
+      "";
 
-      setStory(finalStory || "");
-    } catch (err) {
-      console.error("[ColoringPage] Error while loading story:", err);
-      setStory("");
-    } finally {
-      setLoading(false);
-    }
-  }, [router]);
+    console.log(
+      "[ColoringPage] Final story after storage + query merge:",
+      finalStory.slice(0, 120) + (finalStory.length > 120 ? "..." : "")
+    );
 
-  // ─────────────────────────────────────────
-  // 로딩 중 화면
-  // ─────────────────────────────────────────
-  if (loading) {
+    setStory(finalStory);
+    setIsReady(true);
+  }, [router.query.story]);
+
+  // 2) 캔버스 전체 지우기 (Toolbar에서 사용)
+  const handleClearCanvas = () => {
+    const canvas = document.querySelector("canvas.coloring-canvas");
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+  };
+
+  // 3) 로딩 상태
+  if (!isReady) {
     return (
       <main className="coloring-page">
         <header className="coloring-header">
@@ -68,12 +78,8 @@ export default function ColoringPage() {
     );
   }
 
-  // ─────────────────────────────────────────
-  // 저장된 동화가 전혀 없을 때
-  // ─────────────────────────────────────────
-  const hasStory = typeof story === "string" && story.trim().length > 0;
-
-  if (!hasStory) {
+  // 4) 스토리가 전혀 없을 때 – 기존 안내 화면
+  if (!story || story.trim().length === 0) {
     return (
       <main className="coloring-page">
         <header className="coloring-header">
@@ -110,10 +116,9 @@ export default function ColoringPage() {
     );
   }
 
-  // ─────────────────────────────────────────
-  // 여기부터는 "동화는 있다" 상태 → 색칠 UI 뼈대
-  // 장면 분할 / 썸네일 / 자동 그림 생성은 이 뼈대 위에 나중에 추가
-  // ─────────────────────────────────────────
+  // 5) 스토리가 있을 때 – 색칠 뼈대 UI
+  const storyLines = story.split(/\n+/); // 항상 배열이므로 .map 안전
+
   return (
     <main className="coloring-page">
       <header className="coloring-header">
@@ -124,28 +129,28 @@ export default function ColoringPage() {
       </header>
 
       <section className="coloring-layout">
-        {/* 왼쪽 사이드바 – 현재는 안내 텍스트만, 나중에 장면 썸네일 추가 */}
+        {/* 왼쪽: 스토리 미리보기 (나중에 장면 썸네일로 교체 예정) */}
         <aside className="coloring-sidebar">
-          <h2 className="sidebar-title">장면 선택</h2>
-          <p className="sidebar-helper">
-            현재는 연습 단계라 빈 캔버스에 자유롭게 색칠할 수 있습니다.
-            <br />
-            다음 단계에서 이 동화를 여러 장면으로 나누고,
-            각 장면에 맞는 컬러링 그림을 자동 생성해 이 영역에 썸네일로
-            보여줄 예정입니다.
-          </p>
+          <h2 className="sidebar-title">오늘 만든 동화</h2>
+          <div className="sidebar-story-box">
+            {storyLines.map((line, idx) => (
+              <p key={idx}>{line}</p>
+            ))}
+          </div>
         </aside>
 
-        {/* 오른쪽 메인 – 색 팔레트 + 도구 + 캔버스 */}
+        {/* 오른쪽: 팔레트 + 캔버스 + 툴바 */}
         <div className="coloring-main">
           <div className="coloring-toolbar-row">
-            <ColorPalette />
-            <Toolbar />
+            <ColorPalette
+              selectedColor={currentColor}
+              onChangeColor={setCurrentColor}
+            />
+            <Toolbar onClear={handleClearCanvas} />
           </div>
 
           <div className="coloring-canvas-wrapper">
-            {/* 지금은 story 를 직접 쓰진 않지만, 필요하면 prop 로 넘길 수 있음 */}
-            <ColoringCanvas />
+            <ColoringCanvas color={currentColor} ref={canvasRef} />
           </div>
 
           <p className="coloring-tip">
