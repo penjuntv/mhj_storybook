@@ -1,5 +1,5 @@
 // components/storybook/StoryResult.js
-// STEP 2: 생성된 동화 보여주는 영역 + STEP 3로 넘기는 버튼
+// STEP 2: 생성된 동화 보여주는 영역 + Step3로 넘겨주는 버튼
 
 import { useRouter } from "next/router";
 import { saveStory } from "../../utils/storyStorage";
@@ -16,10 +16,10 @@ export default function StoryResult({ story, error, title }) {
   const handleColoringStart = () => {
     if (!hasStory) return;
 
-    // 1) localStorage에 현재 동화 저장
+    // Step3에서 쓸 수 있도록 "마지막 동화"를 저장
     saveStory({ story });
 
-    // 2) 색칠 페이지로 이동
+    // 쿼리스트링 의존 없이 단순히 /coloring 으로 이동
     router.push("/coloring");
   };
 
@@ -37,17 +37,18 @@ export default function StoryResult({ story, error, title }) {
         )}
       </div>
 
-      {/* 동화가 있을 때만 색칠 놀이 버튼 활성화 */}
-      <div className="story-actions">
-        <button
-          type="button"
-          className={`primary-button ${!hasStory ? "disabled" : ""}`}
-          onClick={handleColoringStart}
-          disabled={!hasStory}
-        >
-          이 동화로 색칠 놀이 하기
-        </button>
-      </div>
+      {/* 동화가 있을 때만 색칠 버튼 노출 */}
+      {hasStory && (
+        <div className="story-actions">
+          <button
+            type="button"
+            className="primary-button"
+            onClick={handleColoringStart}
+          >
+            이 동화로 색칠 놀이 하기
+          </button>
+        </div>
+      )}
     </div>
   );
 }
