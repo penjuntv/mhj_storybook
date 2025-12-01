@@ -1,475 +1,515 @@
 // pages/coloring.js
+// STEP 3: AI가 만든 동화를 기반으로 컬러링 페이지 구성
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import Head from "next/head";
-
-// 간단한 다국어 텍스트
-const I18N = {
-  ko: {
-    title: "STEP 3 · 색칠하기",
-    subtitle: "AI Storybook – 색칠하기",
-    sceneListTitle: "장면 선택",
-    noStory: "먼저 동화를 만든 뒤, 색칠하기를 시작할 수 있습니다.",
-    loadingScenes: "색칠용 장면을 만드는 중입니다…",
-    loadErrorPrefix: "색칠용 그림 생성 실패: ",
-    fullscreen: "전체 화면",
-    reload: "불러오기",
-    save: "저장",
-    tip: "팁: 태블릿/스마트폰에서는 가로 화면으로 돌리면 색칠하기 캔버스를 더 크게 볼 수 있어요.",
-  },
-  en: {
-    title: "STEP 3 · Coloring",
-    subtitle: "AI Storybook – Coloring",
-    sceneListTitle: "Scenes",
-    noStory: "Please create a story first, then come back to color it.",
-    loadingScenes: "Generating coloring scenes…",
-    loadErrorPrefix: "Failed to generate coloring pages: ",
-    fullscreen: "Fullscreen",
-    reload: "Reload",
-    save: "Save",
-    tip: "Tip: On tablets/phones, rotate to landscape to see a larger canvas.",
-  },
-  zh: {
-    title: "STEP 3 · 填色",
-    subtitle: "AI 故事书 – 填色",
-    sceneListTitle: "场景选择",
-    noStory: "请先生成故事，然后再来填色。",
-    loadingScenes: "正在生成可填色的场景…",
-    loadErrorPrefix: "生成填色图片失败：",
-    fullscreen: "全屏",
-    reload: "重新加载",
-    save: "保存",
-    tip: "提示：在平板或手机上横屏可以看到更大的画布。",
-  },
-};
-
-const DEFAULT_LOCALE = "ko";
-
-// 3–5세용 큰 팔레트 (20색)
-const PALETTE = [
-  "#000000", // black
-  "#FF7A00", // orange
-  "#FFC400", // yellow
-  "#FFD966", // light yellow
-  "#4CAF50", // green
-  "#00BFA5", // teal
-  "#1976D2", // blue
-  "#3F51B5", // indigo
-  "#673AB7", // deep purple
-  "#E91E63", // pink
-  "#9C27B0", // purple
-  "#795548", // brown
-  "#9E9E9E", // gray
-  "#FFC1A1", // skin-ish
-  "#FFF3E0", // warm light
-  "#E0F7FA", // light cyan
-  "#E8EAF6", // light indigo
-  "#F3E5F5", // light purple
-  "#FFF9C4", // pale yellow
-  "#FFFFFF", // white
-];
-
-function getLocaleFromNavigator() {
-  if (typeof navigator === "undefined") return DEFAULT_LOCALE;
-  const lang = navigator.language || navigator.userLanguage || "ko";
-  if (lang.startsWith("ko")) return "ko";
-  if (lang.startsWith("zh")) return "zh";
-  return "en";
-}
-
-// 여러 storage에서 스토리 텍스트를 찾아오는 유틸
-function detectStoryFromStorage() {
-  if (typeof window === "undefined") return { story: "", source: null };
-
-  const candidates = [
-    "mhj_storybook_lastStory",
-    "mhj_storybook_story",
-    "storybook_last_story",
-    "storybook_lastStory",
-    "storybook_story",
-    "ai_storybook_last_story",
-  ];
-
-  const sources = [
-    { name: "localStorage", storage: window.localStorage },
-    { name: "sessionStorage", storage: window.sessionStorage },
-  ];
-
-  for (const { name, storage } of sources) {
-    if (!storage) continue;
-    for (const key of candidates) {
-      try {
-        const value = storage.getItem(key);
-        if (value && typeof value === "string" && value.trim().length > 20) {
-          return { story: value, source: `${name}:${key}` };
-        }
-      } catch (e) {
-        // 일부 브라우저/환경에서 접근 실패할 수 있으니 조용히 무시
-      }
-    }
-  }
-
-  return { story: "", source: null };
-}
+import Link from "next/link";
+import ColoringCanvas from "../components/coloring/ColoringCanvas";
 
 export default function ColoringPage() {
-  const [locale, setLocale] = useState(DEFAULT_LOCALE);
-  const t = I18N[locale] || I18N[DEFAULT_LOCALE];
+  const [loadingStory, setLoadingStory] = useState(true);
+  const [storyData, setStoryData] = useState(null); // { story, createdAt }
+  const [error, setError] = useState("");
 
-  const [story, setStory] = useState("");
-  const [storySource, setStorySource] = useState(null); // 디버그용: 어느 key에서 읽었는지
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [scenes, setScenes] = useState([]); // [{ index, prompt, imageUrl }]
+  const [selectedIndex, setSelectedIndex] = useState(0);
 
-  const [pages, setPages] = useState([]); // {id, prompt, url}
-  const [selectedPageId, setSelectedPageId] = useState(null);
-  const [loading, setLoading] = useState(false);
-  const [loadError, setLoadError] = useState("");
-
-  const [currentColor, setCurrentColor] = useState(PALETTE[1]);
-
-  const canvasRef = useRef(null);
-  const ctxRef = useRef(null);
-  const drawing = useRef(false);
-  const lastPoint = useRef({ x: 0, y: 0 });
-
-  // 캔버스 크기 조정
+  // localStorage에서 스토리 읽기
   useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
+    if (typeof window === "undefined") return;
 
-    const resize = () => {
-      const parent = canvas.parentElement;
-      if (!parent) return;
-      const rect = parent.getBoundingClientRect();
-
-      const ratio = window.devicePixelRatio || 1;
-      canvas.width = rect.width * ratio;
-      canvas.height = rect.height * ratio;
-
-      const ctx = canvas.getContext("2d");
-      ctx.setTransform(1, 0, 0, 1, 0, 0); // scale 중복 방지
-      ctx.scale(ratio, ratio);
-      ctx.lineCap = "round";
-      ctx.lineJoin = "round";
-      ctx.lineWidth = 10; // 굵은 선
-      ctxRef.current = ctx;
-
-      const currentPage = pages.find((p) => p.id === selectedPageId);
-      if (currentPage && currentPage.url) {
-        drawBackgroundImage(currentPage.url, canvas, ctx);
-      } else {
-        ctx.clearRect(0, 0, rect.width, rect.height);
+    try {
+      const raw = window.localStorage.getItem("mhj_coloring_story_v1");
+      if (!raw) {
+        setError(
+          "먼저 첫 번째 페이지에서 AI로 동화를 만든 뒤, '이 동화를 색칠 놀이 하기' 버튼을 눌러 주세요."
+        );
+        setLoadingStory(false);
+        return;
       }
-    };
 
-    resize();
-    window.addEventListener("resize", resize);
-    return () => window.removeEventListener("resize", resize);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pages, selectedPageId]);
+      const parsed = JSON.parse(raw);
+      if (!parsed || typeof parsed.story !== "string") {
+        setError(
+          "저장된 동화를 불러올 수 없습니다. 다시 동화를 생성한 뒤 색칠 페이지로 이동해 주세요."
+        );
+        setLoadingStory(false);
+        return;
+      }
 
-  // 초기 locale + 스토리 로드
-  useEffect(() => {
-    setLocale(getLocaleFromNavigator());
-
-    const { story: detectedStory, source } = detectStoryFromStorage();
-    if (detectedStory) {
-      setStory(detectedStory);
-      setStorySource(source);
+      setStoryData({
+        story: parsed.story,
+        createdAt: parsed.createdAt || null,
+      });
+      setLoadingStory(false);
+    } catch (e) {
+      console.error("Failed to load story from localStorage:", e);
+      setError(
+        "스토리를 불러오는 중 문제가 발생했습니다. 다시 동화를 생성해 주세요."
+      );
+      setLoadingStory(false);
     }
   }, []);
 
-  // 스토리가 있으면 장면 생성 시도
-  useEffect(() => {
-    if (!story) return;
-    generateColoringPages();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [story, locale]);
+  const handleGenerateScenes = useCallback(async () => {
+    if (!storyData || !storyData.story) return;
 
-  const generateColoringPages = async () => {
-    if (!story) return;
-
-    setLoading(true);
-    setLoadError("");
-    setPages([]);
-    setSelectedPageId(null);
+    setError("");
+    setIsGenerating(true);
+    setScenes([]);
+    setSelectedIndex(0);
 
     try {
-      const res = await fetch("/api/generateColoringPages", {
+      const res = await fetch("/api/generateColoringImages", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          story,
-          locale,
-          numPages: 6,
+          story: storyData.story,
+          maxScenes: 4,
         }),
       });
 
       if (!res.ok) {
         const text = await res.text();
-        setLoadError(`${t.loadErrorPrefix}HTTP ${res.status}`);
-        console.error("generateColoringPages error:", text);
-        return;
+        throw new Error(text || `HTTP ${res.status}`);
       }
 
       const data = await res.json();
-      const pages = Array.isArray(data.pages) ? data.pages : [];
-      setPages(pages);
-      if (pages.length > 0) {
-        setSelectedPageId(pages[0].id);
+      if (!data.scenes || !Array.isArray(data.scenes) || data.scenes.length === 0) {
+        throw new Error("이미지를 생성하지 못했습니다.");
       }
+
+      setScenes(data.scenes);
+      setSelectedIndex(0);
     } catch (err) {
-      console.error("generateColoringPages error:", err);
-      setLoadError(`${t.loadErrorPrefix}${err?.message || "Unknown error"}`);
+      console.error("generateColoringImages failed:", err);
+      setError(
+        "색칠용 그림을 만드는 중 문제가 발생했습니다. 잠시 후 다시 시도해 주세요."
+      );
     } finally {
-      setLoading(false);
+      setIsGenerating(false);
     }
-  };
+  }, [storyData]);
 
-  const currentPage = pages.find((p) => p.id === selectedPageId) || null;
+  const hasStory = !!storyData && typeof storyData.story === "string";
 
-  // 특정 페이지를 선택했을 때 배경 이미지 다시 그림
-  useEffect(() => {
-    if (!currentPage || !currentPage.url) return;
-    const canvas = canvasRef.current;
-    const ctx = ctxRef.current;
-    if (!canvas || !ctx) return;
-    drawBackgroundImage(currentPage.url, canvas, ctx);
-  }, [currentPage]);
-
-  const drawBackgroundImage = (url, canvas, ctx) => {
-    const img = new Image();
-    img.crossOrigin = "anonymous";
-    img.onload = () => {
-      const rect = canvas.getBoundingClientRect();
-      const width = rect.width;
-      const height = rect.height;
-
-      ctx.clearRect(0, 0, width, height);
-
-      const scale = Math.min(width / img.width, height / img.height);
-      const drawW = img.width * scale;
-      const drawH = img.height * scale;
-      const offsetX = (width - drawW) / 2;
-      const offsetY = (height - drawH) / 2;
-      ctx.drawImage(img, offsetX, offsetY, drawW, drawH);
-    };
-    img.onerror = (e) => {
-      console.error("Failed to load background image", e);
-    };
-    img.src = url;
-  };
-
-  // 좌표 계산
-  const getCanvasPoint = (event) => {
-    const canvas = canvasRef.current;
-    if (!canvas) return { x: 0, y: 0 };
-
-    const rect = canvas.getBoundingClientRect();
-    let clientX, clientY;
-
-    if (event.touches && event.touches[0]) {
-      clientX = event.touches[0].clientX;
-      clientY = event.touches[0].clientY;
-    } else {
-      clientX = event.clientX;
-      clientY = event.clientY;
-    }
-
-    const x = clientX - rect.left;
-    const y = clientY - rect.top;
-    return { x, y };
-  };
-
-  const handlePointerDown = (e) => {
-    if (!ctxRef.current) return;
-    e.preventDefault();
-    drawing.current = true;
-    const p = getCanvasPoint(e);
-    lastPoint.current = p;
-  };
-
-  const handlePointerMove = (e) => {
-    if (!drawing.current || !ctxRef.current) return;
-    e.preventDefault();
-    const ctx = ctxRef.current;
-    const p = getCanvasPoint(e);
-
-    ctx.strokeStyle = currentColor;
-    ctx.beginPath();
-    ctx.moveTo(lastPoint.current.x, lastPoint.current.y);
-    ctx.lineTo(p.x, p.y);
-    ctx.stroke();
-
-    lastPoint.current = p;
-  };
-
-  const handlePointerUp = (e) => {
-    if (!ctxRef.current) return;
-    e.preventDefault();
-    drawing.current = false;
-  };
-
-  const handleSave = () => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-
-    const link = document.createElement("a");
-    link.download = "storybook-coloring.png";
-    link.href = canvas.toDataURL("image/png");
-    link.click();
-  };
-
-  const handleFullscreen = () => {
-    const container = document.documentElement;
-    if (container.requestFullscreen) {
-      container.requestFullscreen();
-    }
-  };
+  const selectedScene =
+    scenes && scenes.length > 0
+      ? scenes.find((s) => s.index === selectedIndex) || scenes[0]
+      : null;
 
   return (
     <>
       <Head>
-        <title>{t.title}</title>
+        <title>AI Storybook – Step 3 · 색칠 놀이</title>
       </Head>
-      <div className="page-root coloring-page">
+
+      <div
+        className="coloring-page-root"
+        style={{
+          minHeight: "100vh",
+          padding: "16px",
+          boxSizing: "border-box",
+          background: "#FFF7EC",
+          display: "flex",
+          flexDirection: "column",
+        }}
+      >
         {/* 상단 헤더 */}
-        <header className="page-header">
+        <header
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            marginBottom: "16px",
+          }}
+        >
           <div>
-            <h1>{t.title}</h1>
-            <p>{t.subtitle}</p>
+            <h1
+              style={{
+                margin: 0,
+                fontSize: "20px",
+                fontWeight: 700,
+              }}
+            >
+              Step 3 · 색칠 놀이
+            </h1>
+            <p
+              style={{
+                margin: "4px 0 0",
+                fontSize: "13px",
+                color: "#704424",
+              }}
+            >
+              오늘 만든 영어 동화를 바탕으로 AI가 만든 그림에 색을 칠해요.
+            </p>
           </div>
-          <div className="lang-switch">
-            <button
-              type="button"
-              className={locale === "en" ? "active" : ""}
-              onClick={() => setLocale("en")}
+
+          <Link href="/" legacyBehavior>
+            <a
+              style={{
+                fontSize: "13px",
+                textDecoration: "none",
+                padding: "6px 12px",
+                borderRadius: "999px",
+                border: "1px solid #E0B489",
+                background: "#FFF3E3",
+                color: "#704424",
+              }}
             >
-              EN
-            </button>
-            <button
-              type="button"
-              className={locale === "ko" ? "active" : ""}
-              onClick={() => setLocale("ko")}
-            >
-              KO
-            </button>
-            <button
-              type="button"
-              className={locale === "zh" ? "active" : ""}
-              onClick={() => setLocale("zh")}
-            >
-              中文
-            </button>
-          </div>
+              ← 단어·동화 만들기 화면으로
+            </a>
+          </Link>
         </header>
 
-        <main className="coloring-layout">
-          {/* 좌측: 장면 선택 */}
-          <aside className="coloring-scenes-panel">
-            <h2>{t.sceneListTitle}</h2>
-            {!story && (
-              <p className="coloring-info-text">{t.noStory}</p>
-            )}
-            {story && loading && (
-              <p className="coloring-info-text">{t.loadingScenes}</p>
-            )}
-            {loadError && (
-              <p className="coloring-error-text">{loadError}</p>
-            )}
-            <div className="coloring-scenes-list">
-              {pages.map((page, index) => (
-                <button
-                  key={page.id}
-                  type="button"
-                  className={
-                    "coloring-scene-item" +
-                    (page.id === selectedPageId ? " active" : "")
-                  }
-                  onClick={() => setSelectedPageId(page.id)}
-                >
-                  <div className="scene-thumb-wrapper">
-                    {page.url ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img
-                        src={page.url}
-                        alt={`Page ${index + 1}`}
-                        className="scene-thumb-image"
-                      />
-                    ) : (
-                      <div className="scene-thumb-placeholder" />
-                    )}
-                  </div>
-                  <div className="scene-thumb-label">
-                    Page {index + 1}
-                  </div>
-                </button>
-              ))}
-            </div>
-          </aside>
+        {/* 에러 메시지 */}
+        {error && (
+          <div
+            style={{
+              marginBottom: "12px",
+              padding: "10px 12px",
+              borderRadius: "10px",
+              background: "#FFE0E0",
+              color: "#A53333",
+              fontSize: "13px",
+            }}
+          >
+            {error}
+          </div>
+        )}
 
-          {/* 중앙: 팔레트 + 캔버스 */}
-          <section className="coloring-main">
-            {/* 팔레트 + 버튼들 */}
-            <div className="coloring-toolbar">
-              <div className="palette-label">색 선택:</div>
-              <div className="palette-row">
-                {PALETTE.map((c) => (
-                  <button
-                    key={c}
-                    type="button"
-                    className={
-                      "palette-color" +
-                      (currentColor === c ? " selected" : "")
-                    }
-                    style={{ backgroundColor: c }}
-                    onClick={() => setCurrentColor(c)}
-                  />
-                ))}
-              </div>
-              <div className="toolbar-buttons">
-                <button type="button" onClick={handleFullscreen}>
-                  {t.fullscreen}
-                </button>
-                <button type="button" onClick={generateColoringPages}>
-                  {t.reload}
-                </button>
-                <button type="button" onClick={handleSave}>
-                  {t.save}
-                </button>
-              </div>
-            </div>
-
-            {/* 캔버스 */}
-            <div className="coloring-canvas-wrapper">
-              <canvas
-                ref={canvasRef}
-                className="coloring-canvas"
-                onMouseDown={handlePointerDown}
-                onMouseMove={handlePointerMove}
-                onMouseUp={handlePointerUp}
-                onMouseLeave={handlePointerUp}
-                onTouchStart={handlePointerDown}
-                onTouchMove={handlePointerMove}
-                onTouchEnd={handlePointerUp}
-              />
-            </div>
-
-            <p className="coloring-tip-text">{t.tip}</p>
-            {storySource && (
-              <p
+        {/* 스토리 로딩 상태 */}
+        {loadingStory ? (
+          <div
+            style={{
+              flex: 1,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              fontSize: "14px",
+            }}
+          >
+            저장된 동화를 불러오는 중입니다…
+          </div>
+        ) : !hasStory ? (
+          <div
+            style={{
+              flex: 1,
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              justifyContent: "center",
+              fontSize: "14px",
+              textAlign: "center",
+            }}
+          >
+            <p style={{ marginBottom: "12px" }}>
+              저장된 동화가 없습니다. 먼저 첫 페이지에서 동화를 만들어 주세요.
+            </p>
+            <Link href="/" legacyBehavior>
+              <a
                 style={{
-                  fontSize: 10,
-                  opacity: 0.5,
-                  marginTop: 4,
+                  padding: "10px 18px",
+                  borderRadius: "999px",
+                  border: "none",
+                  background: "#FF8C41",
+                  color: "#fff",
+                  fontWeight: 600,
+                  fontSize: "14px",
+                  textDecoration: "none",
+                  boxShadow: "0 6px 14px rgba(0,0,0,0.12)",
                 }}
               >
-                (debug: story from {storySource})
-              </p>
-            )}
-          </section>
-        </main>
+                동화 만들기 화면으로 가기
+              </a>
+            </Link>
+          </div>
+        ) : (
+          // 본문 레이아웃
+          <div
+            style={{
+              flex: 1,
+              display: "flex",
+              flexDirection: "row",
+              gap: "12px",
+              minHeight: 0,
+            }}
+          >
+            {/* 좌측: 장면 선택 + 생성 버튼 */}
+            <aside
+              style={{
+                width: "260px",
+                minWidth: "220px",
+                maxWidth: "280px",
+                background: "#FFF2DD",
+                borderRadius: "18px",
+                padding: "12px",
+                boxSizing: "border-box",
+                display: "flex",
+                flexDirection: "column",
+              }}
+            >
+              <div
+                style={{
+                  marginBottom: "10px",
+                  fontSize: "13px",
+                  fontWeight: 600,
+                  color: "#704424",
+                }}
+              >
+                오늘의 동화
+              </div>
+              <div
+                style={{
+                  fontSize: "11px",
+                  lineHeight: 1.4,
+                  maxHeight: "110px",
+                  overflow: "auto",
+                  padding: "8px",
+                  borderRadius: "10px",
+                  background: "#FFF9F0",
+                  border: "1px solid #F4C79E",
+                  whiteSpace: "pre-wrap",
+                }}
+              >
+                {storyData.story}
+              </div>
+
+              <button
+                type="button"
+                onClick={handleGenerateScenes}
+                disabled={isGenerating}
+                style={{
+                  marginTop: "10px",
+                  width: "100%",
+                  padding: "8px 10px",
+                  borderRadius: "999px",
+                  border: "none",
+                  cursor: isGenerating ? "default" : "pointer",
+                  background: isGenerating ? "#FFB27A" : "#FF8C41",
+                  color: "#fff",
+                  fontSize: "13px",
+                  fontWeight: 600,
+                  boxShadow: "0 6px 12px rgba(0,0,0,0.12)",
+                }}
+              >
+                {isGenerating ? "그림을 만드는 중입니다…" : "이 이야기로 색칠 그림 만들기"}
+              </button>
+
+              <div
+                style={{
+                  marginTop: "12px",
+                  marginBottom: "4px",
+                  fontSize: "12px",
+                  fontWeight: 600,
+                  color: "#704424",
+                }}
+              >
+                장면 선택
+              </div>
+
+              <div
+                style={{
+                  flex: 1,
+                  overflowY: "auto",
+                  paddingRight: "4px",
+                }}
+              >
+                {scenes.length === 0 ? (
+                  <div
+                    style={{
+                      fontSize: "12px",
+                      color: "#9B6A3B",
+                      padding: "6px 2px",
+                    }}
+                  >
+                    “이 이야기로 색칠 그림 만들기” 버튼을 눌러 AI가 장면별 그림을
+                    만들게 해 주세요.
+                  </div>
+                ) : (
+                  scenes.map((scene) => {
+                    const active = scene.index === selectedIndex;
+                    return (
+                      <button
+                        key={scene.index}
+                        type="button"
+                        onClick={() => setSelectedIndex(scene.index)}
+                        style={{
+                          width: "100%",
+                          textAlign: "left",
+                          border: active
+                            ? "2px solid #FF8C41"
+                            : "1px solid #F0C199",
+                          borderRadius: "14px",
+                          padding: "6px",
+                          marginBottom: "8px",
+                          background: active ? "#FFF6EA" : "#FFFDF8",
+                          cursor: "pointer",
+                          display: "flex",
+                          gap: "8px",
+                          boxSizing: "border-box",
+                        }}
+                      >
+                        {scene.imageUrl ? (
+                          <div
+                            style={{
+                              width: "60px",
+                              height: "60px",
+                              borderRadius: "12px",
+                              overflow: "hidden",
+                              background: "#FFF",
+                              flexShrink: 0,
+                            }}
+                          >
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img
+                              src={scene.imageUrl}
+                              alt={`Scene ${scene.index + 1}`}
+                              style={{
+                                width: "100%",
+                                height: "100%",
+                                objectFit: "cover",
+                              }}
+                            />
+                          </div>
+                        ) : (
+                          <div
+                            style={{
+                              width: "60px",
+                              height: "60px",
+                              borderRadius: "12px",
+                              background: "#F5D7AA",
+                              flexShrink: 0,
+                            }}
+                          />
+                        )}
+
+                        <div
+                          style={{
+                            flex: 1,
+                            minWidth: 0,
+                          }}
+                        >
+                          <div
+                            style={{
+                              fontSize: "11px",
+                              fontWeight: 700,
+                              marginBottom: "2px",
+                              color: "#704424",
+                            }}
+                          >
+                            장면 {scene.index + 1}
+                          </div>
+                          <div
+                            style={{
+                              fontSize: "10px",
+                              color: "#8F6234",
+                              maxHeight: "42px",
+                              overflow: "hidden",
+                              textOverflow: "ellipsis",
+                              display: "-webkit-box",
+                              WebkitLineClamp: 3,
+                              WebkitBoxOrient: "vertical",
+                            }}
+                          >
+                            {scene.prompt}
+                          </div>
+                        </div>
+                      </button>
+                    );
+                  })
+                )}
+              </div>
+            </aside>
+
+            {/* 우측: 메인 색칠 영역 */}
+            <main
+              style={{
+                flex: 1,
+                minWidth: 0,
+                display: "flex",
+                flexDirection: "column",
+                background: "#FFF9F0",
+                borderRadius: "18px",
+                padding: "12px",
+                boxSizing: "border-box",
+              }}
+            >
+              <div
+                style={{
+                  marginBottom: "8px",
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                }}
+              >
+                <div
+                  style={{
+                    fontSize: "13px",
+                    fontWeight: 600,
+                    color: "#704424",
+                  }}
+                >
+                  색칠하기 화면
+                  {selectedScene && (
+                    <span style={{ fontSize: "12px", marginLeft: "6px" }}>
+                      (장면 {selectedScene.index + 1})
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              <div
+                style={{
+                  flex: 1,
+                  minHeight: 0,
+                  borderRadius: "16px",
+                  border: "1px solid #F0C199",
+                  background: "#FFFFFF",
+                  padding: "8px",
+                  boxSizing: "border-box",
+                  display: "flex",
+                  flexDirection: "column",
+                }}
+              >
+                {scenes.length === 0 ? (
+                  <div
+                    style={{
+                      flex: 1,
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      fontSize: "13px",
+                      color: "#9B6A3B",
+                      textAlign: "center",
+                      padding: "0 16px",
+                    }}
+                  >
+                    먼저 왼쪽에서 “이 이야기로 색칠 그림 만들기” 버튼을 눌러
+                    그림을 만들어 주세요.
+                  </div>
+                ) : !selectedScene ? (
+                  <div
+                    style={{
+                      flex: 1,
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      fontSize: "13px",
+                    }}
+                  >
+                    장면을 선택해 주세요.
+                  </div>
+                ) : (
+                  <ColoringCanvas imageUrl={selectedScene.imageUrl} />
+                )}
+              </div>
+            </main>
+          </div>
+        )}
       </div>
     </>
   );
