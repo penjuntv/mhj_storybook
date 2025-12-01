@@ -1,183 +1,215 @@
-// pages/api/generateColoringPages.js
+// pages/api/generateColoringImages.js
 
 /**
- * Step3: Coloring pages generator
+ * Generate coloring-page-style line-art images based on a story text.
  *
- * - Input: { story: string, locale?: "en" | "ko" | "zh", numPages?: number }
- * - Output: { pages: Array<{ id: string, prompt: string, url: string }> }
+ * Request body (JSON):
+ * {
+ *   story: string,       // required, full English story text
+ *   maxScenes?: number   // optional, default 4, max 8
+ * }
  *
- * Uses OpenAI image generation (line-art coloring style).
+ * Response body (JSON):
+ * {
+ *   scenes: Array<{
+ *     index: number,
+ *     prompt: string,
+ *     imageUrl: string
+ *   }>
+ * }
  */
 
-export const config = {
-  api: {
-    bodyParser: true,
-  },
-};
-
-const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
-
-if (!OPENAI_API_KEY) {
-  // 빌드/런타임에서 바로 알아볼 수 있게 콘솔에 남겨 둠
-  console.warn(
-    "[generateColoringPages] OPENAI_API_KEY is not set. Coloring generation will fail."
-  );
-}
+const TEXT_API_URL = "https://api.openai.com/v1/chat/completions";
+const IMAGE_API_URL = "https://api.openai.com/v1/images/generations";
 
 export default async function handler(req, res) {
   if (req.method !== "POST") {
-    res.setHeader("Allow", "POST");
-    return res
-      .status(405)
-      .json({ error: "Method Not Allowed. Use POST /api/generateColoringPages" });
+    res.setHeader("Allow", ["POST"]);
+    return res.status(405).json({ error: "Method Not Allowed" });
+  }
+
+  const apiKey = process.env.OPENAI_API_KEY || process.env.OPENAI_API_TOKEN;
+  if (!apiKey) {
+    return res.status(500).json({
+      error:
+        "OPENAI_API_KEY (or OPENAI_API_TOKEN) is not set in environment variables.",
+    });
   }
 
   try {
-    const { story, locale = "en", numPages = 6 } = req.body || {};
+    const { story, maxScenes = 4 } = req.body || {};
 
-    if (!story || typeof story !== "string") {
-      return res
-        .status(400)
-        .json({ error: "Missing 'story' in request body." });
+    if (!story || typeof story !== "string" || !story.trim()) {
+      return res.status(400).json({
+        error: "Request body must include a non-empty 'story' string.",
+      });
     }
 
-    if (!OPENAI_API_KEY) {
-      return res
-        .status(500)
-        .json({ error: "OPENAI_API_KEY is not configured on the server." });
+    const limit =
+      typeof maxScenes === "number"
+        ? Math.min(Math.max(1, maxScenes), 8)
+        : 4;
+
+    // 1단계: 스토리를 장면 프롬프트 리스트로 변환
+    const scenePrompts = await createScenePromptsFromStory(
+      apiKey,
+      story,
+      limit
+    );
+
+    if (!Array.isArray(scenePrompts) || scenePrompts.length === 0) {
+      return res.status(500).json({
+        error: "Failed to create scene prompts from story.",
+      });
     }
 
-    const safeNum =
-      typeof numPages === "number" && numPages > 0 && numPages <= 8
-        ? Math.round(numPages)
-        : 6;
-
-    // 언어에 따라 살짝 설명만 바꿔 줌 (이미지는 어차피 비언어적이지만 힌트용)
-    const localeHint =
-      locale === "ko"
-        ? "Korean kids' English storybook"
-        : locale === "zh"
-        ? "Chinese kids' English storybook"
-        : "children's English storybook";
-
-    const systemContent =
-      "You are an illustrator for a children's coloring book. " +
-      "Your job is to design simple, clear black-and-white line art scenes for kids aged 3–7. " +
-      "Each scene must be:\n" +
-      "- Strong, thick black outlines\n" +
-      "- White background\n" +
-      "- Closed regions for easy bucket-fill coloring\n" +
-      "- No shading, no gray areas, no small noisy details\n" +
-      "- Friendly, cute, and safe.";
-
-    const userContent = `
-Story (from a ${localeHint}): 
-
-""" 
-${story}
-"""
-
-Task:
-1. Split this story into ${safeNum} simple visual scenes that match important moments.
-2. For each scene, write a very short English prompt describing:
-   - the main character(s),
-   - the main action,
-   - the background setting,
-   - any key props (like apple, bunny doll, treasure chest).
-3. The style must be: "black and white coloring page line art, thick outlines, cute, for kids, no text".
-
-Return only a numbered list of ${safeNum} English prompts, one per line.
-`;
-
-    // 1) 먼저 장면별 프롬프트를 텍스트로 만든 뒤,
-    // 2) 그 프롬프트들을 묶어서 이미지 생성에 사용
-    const textResponse = await fetch("https://api.openai.com/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${OPENAI_API_KEY}`,
-      },
-      body: JSON.stringify({
-        model: "gpt-4.1-mini",
-        messages: [
-          { role: "system", content: systemContent },
-          { role: "user", content: userContent },
-        ],
-        temperature: 0.5,
-      }),
-    });
-
-    if (!textResponse.ok) {
-      const errorText = await textResponse.text();
-      console.error("[generateColoringPages] text error:", errorText);
-      return res
-        .status(textResponse.status)
-        .json({ error: "Failed to create scene prompts", detail: errorText });
+    // 2단계: 각 장면 프롬프트마다 컬러링용 선 그림 생성
+    const scenes = [];
+    for (let i = 0; i < scenePrompts.length; i++) {
+      const prompt = scenePrompts[i];
+      const imageUrl = await generateLineArtImage(apiKey, prompt);
+      if (imageUrl) {
+        scenes.push({
+          index: i,
+          prompt,
+          imageUrl,
+        });
+      }
     }
 
-    const textData = await textResponse.json();
-    const rawText = textData.choices?.[0]?.message?.content || "";
-    const lines = rawText
-      .split("\n")
-      .map((l) => l.trim())
-      .filter(Boolean);
-
-    // "1. ..." 형식이면 앞 번호 제거
-    const prompts = lines
-      .slice(0, safeNum)
-      .map((line) => line.replace(/^\d+[\).\-\:]\s*/, "").trim())
-      .filter(Boolean);
-
-    if (!prompts.length) {
-      return res
-        .status(500)
-        .json({ error: "Failed to parse scene prompts from model output." });
+    if (scenes.length === 0) {
+      return res.status(500).json({
+        error: "Failed to generate any images for the scenes.",
+      });
     }
 
-    // 이제 OpenAI 이미지 생성 (여러 장 한 번에)
-    const imagePromptBase =
-      "Black and white coloring book page for young kids, thick black outlines, no shading, simple shapes, full page scene, no text. Scene description: ";
-
-    const imageResponse = await fetch("https://api.openai.com/v1/images/generations", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${OPENAI_API_KEY}`,
-      },
-      body: JSON.stringify({
-        model: "gpt-image-1",
-        prompt: prompts.map((p, idx) => `${idx + 1}) ${imagePromptBase}${p}`).join("\n"),
-        n: prompts.length,
-        size: "1024x1024",
-        response_format: "url",
-      }),
-    });
-
-    if (!imageResponse.ok) {
-      const errorText = await imageResponse.text();
-      console.error("[generateColoringPages] image error:", errorText);
-      return res
-        .status(imageResponse.status)
-        .json({ error: "Failed to generate coloring images", detail: errorText });
-    }
-
-    const imageData = await imageResponse.json();
-    const images = imageData.data || [];
-
-    const pages = prompts.map((prompt, index) => {
-      const url = images[index]?.url || null;
-      return {
-        id: `page-${index + 1}`,
-        prompt,
-        url,
-      };
-    });
-
-    return res.status(200).json({ pages });
+    return res.status(200).json({ scenes });
   } catch (err) {
-    console.error("[generateColoringPages] Unexpected error:", err);
+    console.error("generateColoringImages error:", err);
     return res.status(500).json({
-      error: "Unexpected server error while generating coloring pages.",
+      error: "Unexpected server error while generating coloring images.",
     });
   }
+}
+
+/**
+ * 스토리 텍스트를 받아서, 1~N개의 장면 프롬프트(영어)를 JSON 배열로 만들어 달라고 GPT에게 요청
+ */
+async function createScenePromptsFromStory(apiKey, story, maxScenes) {
+  const systemPrompt =
+    "You are a children's picture-book storyboard artist. " +
+    "Given a short English children's story, you extract the key scenes " +
+    "that would become individual pages of a picture book.";
+
+  const userPrompt = `
+Read the following English children's story and select ${maxScenes} key moments
+that would make good picture-book pages.
+
+For each key moment, write ONE short ENGLISH prompt that describes:
+- who is in the scene,
+- what they are doing,
+- a few simple background details,
+- but keep it suitable for a black-and-white line-art coloring page
+  (no detailed shading, keep shapes clear and simple, avoid tiny details).
+
+Return your answer as a PURE JSON array of strings, like:
+
+[
+  "A child and her mother are baking cookies in a bright kitchen...",
+  "The child walks to school with a backpack and a friend on a sunny morning...",
+  ...
+]
+
+Do NOT add any extra text before or after the JSON.
+Do NOT add comments.
+Do NOT add a title or explanation.
+
+Story:
+"""${story.trim()}"""
+`.trim();
+
+  const response = await fetch(TEXT_API_URL, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${apiKey}`,
+    },
+    body: JSON.stringify({
+      model: "gpt-4o-mini",
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: userPrompt },
+      ],
+      temperature: 0.6,
+    }),
+  });
+
+  if (!response.ok) {
+    const text = await response.text();
+    console.error("Scene prompt API error:", response.status, text);
+    throw new Error("Failed to create scene prompts");
+  }
+
+  const data = await response.json();
+  const content = data?.choices?.[0]?.message?.content || "";
+
+  // JSON 파싱 시도
+  try {
+    // 혹시 앞뒤에 이상한 텍스트가 붙으면 첫 '['부터 마지막 ']'까지만 사용
+    const start = content.indexOf("[");
+    const end = content.lastIndexOf("]");
+    const jsonStr =
+      start >= 0 && end >= start ? content.slice(start, end + 1) : content;
+    const arr = JSON.parse(jsonStr);
+    return (arr || [])
+      .filter((item) => typeof item === "string" && item.trim().length > 0)
+      .slice(0, maxScenes);
+  } catch (e) {
+    console.error("Failed to parse scene prompts JSON:", e, content);
+    throw new Error("Invalid JSON from scene prompt generation");
+  }
+}
+
+/**
+ * 장면 프롬프트를 받아서, 유아용 컬러링북 스타일의 선 그림 이미지를 생성
+ */
+async function generateLineArtImage(apiKey, scenePrompt) {
+  const fullPrompt = `
+Black-and-white line-art coloring page for children aged 3–5.
+
+Requirements:
+- Thick, clean black outlines only, white background.
+- No grey shading, no colors, no text.
+- Simple shapes, big areas that are easy to color.
+- Cute, warm, non-scary style.
+- Focus on the main characters and a few clear background elements.
+- The image must be suitable for a digital coloring app.
+
+Scene:
+${scenePrompt}
+`.trim();
+
+  const response = await fetch(IMAGE_API_URL, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${apiKey}`,
+    },
+    body: JSON.stringify({
+      model: "gpt-image-1",
+      prompt: fullPrompt,
+      n: 1,
+      size: "1024x1024",
+    }),
+  });
+
+  if (!response.ok) {
+    const text = await response.text();
+    console.error("Image API error:", response.status, text);
+    return null;
+  }
+
+  const data = await response.json();
+  const url = data?.data?.[0]?.url;
+  return typeof url === "string" && url.length > 0 ? url : null;
 }
