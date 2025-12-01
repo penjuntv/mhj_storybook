@@ -3,6 +3,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/router";
+
 import { loadStory, saveStory } from "../utils/storyStorage";
 
 import ColoringCanvas from "../components/coloring/ColoringCanvas";
@@ -11,42 +12,34 @@ import Toolbar from "../components/coloring/Toolbar";
 
 export default function ColoringPage() {
   const router = useRouter();
+
   const [loading, setLoading] = useState(true);
   const [story, setStory] = useState("");
 
   useEffect(() => {
+    // router가 준비되지 않은 SSR 초기 렌더링에서는 실행하지 않음
+    if (!router.isReady) return;
+
     // 1) localStorage에서 먼저 시도
-    let finalStory = "";
     const stored = loadStory();
-    console.log("[ColoringPage] loadStory result:", stored);
+    let finalStory = stored && typeof stored.story === "string"
+      ? stored.story
+      : "";
 
-    if (stored && typeof stored.story === "string") {
-      finalStory = stored.story;
-    }
-
-    // 2) 혹시라도 예전 방식처럼 ?story= 로 들어온 경우를 위한 백업 플랜
+    // 2) 예전 방식: /coloring?story=... 로 온 경우를 대비한 fallback
     if (!finalStory) {
-      let fromQuery = router.query.story;
-      if (Array.isArray(fromQuery)) {
-        fromQuery = fromQuery[0];
-      }
+      const queryStory = router.query.story;
 
-      if (typeof fromQuery === "string" && fromQuery.trim().length > 0) {
-        let decoded = fromQuery;
+      if (typeof queryStory === "string" && queryStory.trim().length > 0) {
         try {
-          decoded = decodeURIComponent(decoded);
-        } catch (e) {
-          console.warn("[ColoringPage] 1st decode failed:", e);
-        }
-        try {
-          decoded = decodeURIComponent(decoded);
-        } catch (e) {
-          console.warn("[ColoringPage] 2nd decode failed (can ignore):", e);
-        }
+          const decoded = decodeURIComponent(queryStory);
+          finalStory = decoded;
 
-        finalStory = decoded;
-        // 앞으로는 localStorage만 봐도 되도록 저장
-        saveStory({ story: finalStory });
+          // 앞으로를 위해 localStorage에도 저장해 둔다.
+          saveStory({ story: decoded });
+        } catch (err) {
+          console.error("[ColoringPage] Failed to decode query story", err);
+        }
       }
     }
 
@@ -55,12 +48,9 @@ export default function ColoringPage() {
       finalStory
     );
 
-    if (finalStory && typeof finalStory === "string") {
-      setStory(finalStory);
-    }
-
+    setStory(finalStory);
     setLoading(false);
-  }, [router.query.story]);
+  }, [router.isReady, router.query.story]);
 
   // 로딩 중
   if (loading) {
@@ -74,7 +64,7 @@ export default function ColoringPage() {
     );
   }
 
-  // 저장된 동화가 전혀 없을 때 (Step1으로 돌려보내는 뼈대)
+  // 저장된 동화가 전혀 없을 때
   if (!story || story.trim().length === 0) {
     return (
       <main className="coloring-page">
@@ -112,7 +102,7 @@ export default function ColoringPage() {
     );
   }
 
-  // 여기부터는 "동화는 있다" 상태 → 색칠 UI (뼈대 고정)
+  // 여기부터는 "동화는 있다" 상태 → 색칠 UI 뼈대
   return (
     <main className="coloring-page">
       <header className="coloring-header">
@@ -123,7 +113,6 @@ export default function ColoringPage() {
       </header>
 
       <section className="coloring-layout">
-        {/* 왼쪽: 장면/페이지 썸네일 영역 – 나중에 AI 컬러링 이미지 썸네일이 들어올 자리 */}
         <aside className="coloring-sidebar">
           <h2 className="sidebar-title">장면 선택</h2>
           <p className="sidebar-helper">
@@ -132,7 +121,6 @@ export default function ColoringPage() {
           </p>
         </aside>
 
-        {/* 오른쪽: 색 선택 + 툴바 + 캔버스 – 여기 뼈대 위에 기능을 계속 붙여나감 */}
         <div className="coloring-main">
           <div className="coloring-toolbar-row">
             <ColorPalette />
