@@ -1,53 +1,35 @@
 // utils/storyStorage.js
-// Step2 ↔ Step3에서 공통으로 사용하는 스토리 저장/로드 헬퍼
+// Step2에서 만든 "마지막 동화"를 저장/불러오기 위한 단일 소스
 
-export const STORY_KEY = "storybook_last_story_v1";
+export const STORY_KEY = "storybook_last_story";
 
 /**
- * 스토리를 localStorage에 저장합니다.
- * - raw가 문자열이면 { story: raw } 로 래핑
- * - story가 비어 있으면 아무 것도 하지 않음
+ * storyObj 형태 예:
+ * {
+ *   story: "Yujin woke up ...",   // 필수
+ *   savedAt: "2025-12-02T01:23:45.678Z"  // 선택
+ * }
  */
-export function saveStory(raw) {
-  if (typeof window === "undefined") return;
-
-  const payload =
-    typeof raw === "string"
-      ? { story: raw }
-      : raw && typeof raw === "object"
-      ? raw
-      : null;
-
-  if (!payload) return;
-
-  const storyText =
-    typeof payload.story === "string" ? payload.story.trim() : "";
-
-  if (!storyText) return;
-
-  const toSave = {
-    ...payload,
-    story: storyText,
-    savedAt: new Date().toISOString(),
-  };
-
+export function saveStory(storyObj) {
   try {
-    localStorage.setItem(STORY_KEY, JSON.stringify(toSave));
-    // 디버깅용 로그
-    console.log("[storyStorage] Saved story to localStorage:", toSave);
+    if (!storyObj || typeof storyObj.story !== "string") {
+      console.warn("[storyStorage] saveStory called with invalid object:", storyObj);
+      return;
+    }
+
+    const payload = {
+      story: storyObj.story,
+      savedAt: storyObj.savedAt || new Date().toISOString(),
+    };
+
+    localStorage.setItem(STORY_KEY, JSON.stringify(payload));
+    console.log("[storyStorage] Saved story to localStorage:", payload);
   } catch (err) {
-    console.error("[storyStorage] Save failed", err);
+    console.error("[storyStorage] Save failed:", err);
   }
 }
 
-/**
- * localStorage에서 마지막 스토리를 읽어옵니다.
- * - 정상일 때: { story: string, savedAt: string, ... }
- * - 없거나 에러일 때: null
- */
 export function loadStory() {
-  if (typeof window === "undefined") return null;
-
   try {
     const raw = localStorage.getItem(STORY_KEY);
     console.log("[storyStorage] Raw value from localStorage:", raw);
@@ -55,12 +37,10 @@ export function loadStory() {
     if (!raw) return null;
 
     const parsed = JSON.parse(raw);
-    if (!parsed || typeof parsed.story !== "string") return null;
-
-    console.log("[storyStorage] Parsed story object:", parsed);
+    console.log("[storyStorage] Parsed value from localStorage:", parsed);
     return parsed;
   } catch (err) {
-    console.error("[storyStorage] Load failed", err);
+    console.error("[storyStorage] Load failed:", err);
     return null;
   }
 }
