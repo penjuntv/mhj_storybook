@@ -77,11 +77,48 @@ function getLocaleFromNavigator() {
   return "en";
 }
 
+// 여러 storage에서 스토리 텍스트를 찾아오는 유틸
+function detectStoryFromStorage() {
+  if (typeof window === "undefined") return { story: "", source: null };
+
+  const candidates = [
+    "mhj_storybook_lastStory",
+    "mhj_storybook_story",
+    "storybook_last_story",
+    "storybook_lastStory",
+    "storybook_story",
+    "ai_storybook_last_story",
+  ];
+
+  const sources = [
+    { name: "localStorage", storage: window.localStorage },
+    { name: "sessionStorage", storage: window.sessionStorage },
+  ];
+
+  for (const { name, storage } of sources) {
+    if (!storage) continue;
+    for (const key of candidates) {
+      try {
+        const value = storage.getItem(key);
+        if (value && typeof value === "string" && value.trim().length > 20) {
+          return { story: value, source: `${name}:${key}` };
+        }
+      } catch (e) {
+        // 일부 브라우저/환경에서 접근 실패할 수 있으니 조용히 무시
+      }
+    }
+  }
+
+  return { story: "", source: null };
+}
+
 export default function ColoringPage() {
   const [locale, setLocale] = useState(DEFAULT_LOCALE);
   const t = I18N[locale] || I18N[DEFAULT_LOCALE];
 
   const [story, setStory] = useState("");
+  const [storySource, setStorySource] = useState(null); // 디버그용: 어느 key에서 읽었는지
+
   const [pages, setPages] = useState([]); // {id, prompt, url}
   const [selectedPageId, setSelectedPageId] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -109,18 +146,18 @@ export default function ColoringPage() {
       canvas.height = rect.height * ratio;
 
       const ctx = canvas.getContext("2d");
+      ctx.setTransform(1, 0, 0, 1, 0, 0); // scale 중복 방지
       ctx.scale(ratio, ratio);
       ctx.lineCap = "round";
       ctx.lineJoin = "round";
       ctx.lineWidth = 10; // 굵은 선
       ctxRef.current = ctx;
 
-      // 페이지가 선택되어 있으면 배경 다시 그림
       const currentPage = pages.find((p) => p.id === selectedPageId);
       if (currentPage && currentPage.url) {
         drawBackgroundImage(currentPage.url, canvas, ctx);
       } else {
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.clearRect(0, 0, rect.width, rect.height);
       }
     };
 
@@ -134,13 +171,10 @@ export default function ColoringPage() {
   useEffect(() => {
     setLocale(getLocaleFromNavigator());
 
-    if (typeof window !== "undefined") {
-      const savedStory = window.localStorage.getItem(
-        "mhj_storybook_lastStory"
-      );
-      if (savedStory && typeof savedStory === "string") {
-        setStory(savedStory);
-      }
+    const { story: detectedStory, source } = detectStoryFromStorage();
+    if (detectedStory) {
+      setStory(detectedStory);
+      setStorySource(source);
     }
   }, []);
 
@@ -152,6 +186,8 @@ export default function ColoringPage() {
   }, [story, locale]);
 
   const generateColoringPages = async () => {
+    if (!story) return;
+
     setLoading(true);
     setLoadError("");
     setPages([]);
@@ -212,7 +248,6 @@ export default function ColoringPage() {
 
       ctx.clearRect(0, 0, width, height);
 
-      // 이미지 비율 유지해서 가운데 배치
       const scale = Math.min(width / img.width, height / img.height);
       const drawW = img.width * scale;
       const drawH = img.height * scale;
@@ -422,6 +457,17 @@ export default function ColoringPage() {
             </div>
 
             <p className="coloring-tip-text">{t.tip}</p>
+            {storySource && (
+              <p
+                style={{
+                  fontSize: 10,
+                  opacity: 0.5,
+                  marginTop: 4,
+                }}
+              >
+                (debug: story from {storySource})
+              </p>
+            )}
           </section>
         </main>
       </div>
