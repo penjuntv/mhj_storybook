@@ -1,26 +1,19 @@
 // components/coloring/Toolbar.js
+// 향후 기능 확장을 위한 단순 툴바 뼈대
+
 import React from "react";
 
-export default function Toolbar({
-  onToggleFullscreen,
-  onSaveAll,
-  onLoadAll,
-  isFullscreen,
-  labels,
-}) {
-  const { fullscreen, save, load } = labels || {};
-
+export default function Toolbar({ onClear }) {
   return (
     <div className="coloring-toolbar">
-      <button type="button" onClick={onToggleFullscreen}>
-        {fullscreen || "Fullscreen"}
+      <button
+        type="button"
+        className="toolbar-button"
+        onClick={onClear}
+      >
+        전체 지우기
       </button>
-      <button type="button" onClick={onLoadAll}>
-        {load || "Load"}
-      </button>
-      <button type="button" onClick={onSaveAll}>
-        {save || "Save"}
-      </button>
+      {/* 필요하면 여기다 "저장하기", "되돌리기" 같은 버튼을 앞으로 추가 */}
     </div>
   );
 }
