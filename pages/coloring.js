@@ -1,10 +1,11 @@
 // pages/coloring.js
 // STEP 3: 저장된 동화를 바탕으로 색칠 놀이 화면을 보여주는 페이지
+// 1차 목표: 스토리 로딩 + 빈 색칠 UI 뼈대를 100% 안정적으로 띄우는 것
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/router";
 
-import { loadStory, saveStory } from "../utils/storyStorage";
+import { loadStory } from "../utils/storyStorage";
 
 import ColoringCanvas from "../components/coloring/ColoringCanvas";
 import ColorPalette from "../components/coloring/ColorPalette";
@@ -16,56 +17,63 @@ export default function ColoringPage() {
   const [loading, setLoading] = useState(true);
   const [story, setStory] = useState("");
 
+  // 1) localStorage에 저장된 마지막 동화 불러오기
+  // 2) 쿼리스트링에 story 가 있으면 그것으로 덮어쓰기 (가장 최신)
   useEffect(() => {
-    // router가 준비되지 않은 SSR 초기 렌더링에서는 실행하지 않음
-    if (!router.isReady) return;
+    try {
+      // 1) localStorage에서 읽기
+      const stored = typeof window !== "undefined" ? loadStory() : null;
 
-    // 1) localStorage에서 먼저 시도
-    const stored = loadStory();
-    let finalStory = stored && typeof stored.story === "string"
-      ? stored.story
-      : "";
-
-    // 2) 예전 방식: /coloring?story=... 로 온 경우를 대비한 fallback
-    if (!finalStory) {
-      const queryStory = router.query.story;
-
-      if (typeof queryStory === "string" && queryStory.trim().length > 0) {
+      // 2) 쿼리에서 넘어온 story(있으면 더 우선)
+      let queryStory = "";
+      if (router && router.query && typeof router.query.story === "string") {
+        // 프레이머/넥스트에서 인코딩된 문자열이므로 decodeURIComponent
         try {
-          const decoded = decodeURIComponent(queryStory);
-          finalStory = decoded;
-
-          // 앞으로를 위해 localStorage에도 저장해 둔다.
-          saveStory({ story: decoded });
-        } catch (err) {
-          console.error("[ColoringPage] Failed to decode query story", err);
+          queryStory = decodeURIComponent(router.query.story);
+        } catch {
+          queryStory = router.query.story;
         }
       }
+
+      // 최종 스토리 결정
+      const finalStory =
+        (queryStory && queryStory.trim().length > 0 && queryStory) ||
+        (stored && typeof stored.story === "string" ? stored.story : "");
+
+      console.log(
+        "[ColoringPage] Final story after storage + query merge:",
+        finalStory
+      );
+
+      setStory(finalStory || "");
+    } catch (err) {
+      console.error("[ColoringPage] Error while loading story:", err);
+      setStory("");
+    } finally {
+      setLoading(false);
     }
+  }, [router]);
 
-    console.log(
-      "[ColoringPage] Final story after storage + query merge:",
-      finalStory
-    );
-
-    setStory(finalStory);
-    setLoading(false);
-  }, [router.isReady, router.query.story]);
-
-  // 로딩 중
+  // ─────────────────────────────────────────
+  // 로딩 중 화면
+  // ─────────────────────────────────────────
   if (loading) {
     return (
       <main className="coloring-page">
         <header className="coloring-header">
           <h1>Step 3 · 색칠 놀이</h1>
-          <p>저장된 동화를 확인하는 중입니다…</p>
+          <p className="coloring-subtitle">저장된 동화를 불러오는 중입니다…</p>
         </header>
       </main>
     );
   }
 
+  // ─────────────────────────────────────────
   // 저장된 동화가 전혀 없을 때
-  if (!story || story.trim().length === 0) {
+  // ─────────────────────────────────────────
+  const hasStory = typeof story === "string" && story.trim().length > 0;
+
+  if (!hasStory) {
     return (
       <main className="coloring-page">
         <header className="coloring-header">
@@ -102,7 +110,10 @@ export default function ColoringPage() {
     );
   }
 
+  // ─────────────────────────────────────────
   // 여기부터는 "동화는 있다" 상태 → 색칠 UI 뼈대
+  // 장면 분할 / 썸네일 / 자동 그림 생성은 이 뼈대 위에 나중에 추가
+  // ─────────────────────────────────────────
   return (
     <main className="coloring-page">
       <header className="coloring-header">
@@ -113,14 +124,19 @@ export default function ColoringPage() {
       </header>
 
       <section className="coloring-layout">
+        {/* 왼쪽 사이드바 – 현재는 안내 텍스트만, 나중에 장면 썸네일 추가 */}
         <aside className="coloring-sidebar">
           <h2 className="sidebar-title">장면 선택</h2>
           <p className="sidebar-helper">
-            다음 단계에서 &ldquo;이야기 장면별 컬러링 그림&rdquo;을 자동으로
-            생성해 이곳에 썸네일로 보여줄 예정입니다.
+            현재는 연습 단계라 빈 캔버스에 자유롭게 색칠할 수 있습니다.
+            <br />
+            다음 단계에서 이 동화를 여러 장면으로 나누고,
+            각 장면에 맞는 컬러링 그림을 자동 생성해 이 영역에 썸네일로
+            보여줄 예정입니다.
           </p>
         </aside>
 
+        {/* 오른쪽 메인 – 색 팔레트 + 도구 + 캔버스 */}
         <div className="coloring-main">
           <div className="coloring-toolbar-row">
             <ColorPalette />
@@ -128,6 +144,7 @@ export default function ColoringPage() {
           </div>
 
           <div className="coloring-canvas-wrapper">
+            {/* 지금은 story 를 직접 쓰진 않지만, 필요하면 prop 로 넘길 수 있음 */}
             <ColoringCanvas />
           </div>
 
