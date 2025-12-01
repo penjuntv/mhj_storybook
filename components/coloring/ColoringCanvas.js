@@ -1,99 +1,117 @@
 // components/coloring/ColoringCanvas.js
-// 단순 브러시 드로잉 캔버스 (Flood-fill 컬러링 전 단계, 뼈대용)
+// 간단한 낙서용 캔버스 (브러시로 그리기)
+// 아직 "영역 채우기 Colorfy 스타일"은 아니고, 에러 없는 기본 캔버스 뼈대이다.
 
-import React, { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 
-export default function ColoringCanvas({
-  color = "#FF6B6B",
-  lineWidth = 16,
-}) {
+const CANVAS_WIDTH = 900;
+const CANVAS_HEIGHT = 520;
+
+export default function ColoringCanvas({ strokeColor = "#FF4B4B" }) {
   const canvasRef = useRef(null);
-  const isDrawingRef = useRef(false);
-  const lastPosRef = useRef({ x: 0, y: 0 });
+  const ctxRef = useRef(null);
 
-  // 캔버스 초기 설정 및 색상 변경 반영
+  const [isDrawing, setIsDrawing] = useState(false);
+  const [lastPos, setLastPos] = useState({ x: 0, y: 0 });
+
+  // 초기 캔버스 세팅
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
 
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return;
+    canvas.width = CANVAS_WIDTH;
+    canvas.height = CANVAS_HEIGHT;
 
+    const ctx = canvas.getContext("2d");
     ctx.lineCap = "round";
     ctx.lineJoin = "round";
-    ctx.lineWidth = lineWidth;
-    ctx.strokeStyle = color;
-  }, [color, lineWidth]);
+    ctx.lineWidth = 8;
+    ctx.strokeStyle = strokeColor;
+    ctxRef.current = ctx;
 
-  const getPos = (event) => {
+    // 흰 배경
+    ctx.fillStyle = "#FFFFFF";
+    ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+  }, []);
+
+  // 색이 바뀔 때마다 strokeStyle 업데이트
+  useEffect(() => {
+    if (ctxRef.current) {
+      ctxRef.current.strokeStyle = strokeColor;
+    }
+  }, [strokeColor]);
+
+  const getOffsetPos = (event) => {
     const canvas = canvasRef.current;
     if (!canvas) return { x: 0, y: 0 };
 
     const rect = canvas.getBoundingClientRect();
-
-    if (event.touches && event.touches.length > 0) {
-      const touch = event.touches[0];
-      return {
-        x: touch.clientX - rect.left,
-        y: touch.clientY - rect.top,
-      };
-    }
+    const clientX = "touches" in event ? event.touches[0].clientX : event.clientX;
+    const clientY = "touches" in event ? event.touches[0].clientY : event.clientY;
 
     return {
-      x: event.clientX - rect.left,
-      y: event.clientY - rect.top,
+      x: clientX - rect.left,
+      y: clientY - rect.top,
     };
   };
 
   const handlePointerDown = (event) => {
     event.preventDefault();
-    const pos = getPos(event);
-    lastPosRef.current = pos;
-    isDrawingRef.current = true;
+    const pos = getOffsetPos(event);
+    setLastPos(pos);
+    setIsDrawing(true);
   };
 
   const handlePointerMove = (event) => {
-    if (!isDrawingRef.current) return;
+    if (!isDrawing || !ctxRef.current) return;
     event.preventDefault();
 
-    const canvas = canvasRef.current;
-    const ctx = canvas?.getContext("2d");
-    if (!canvas || !ctx) return;
-
-    const newPos = getPos(event);
-    const last = lastPosRef.current;
+    const pos = getOffsetPos(event);
+    const ctx = ctxRef.current;
 
     ctx.beginPath();
-    ctx.moveTo(last.x, last.y);
-    ctx.lineTo(newPos.x, newPos.y);
+    ctx.moveTo(lastPos.x, lastPos.y);
+    ctx.lineTo(pos.x, pos.y);
     ctx.stroke();
 
-    lastPosRef.current = newPos;
+    setLastPos(pos);
   };
 
   const handlePointerUp = (event) => {
     event.preventDefault();
-    isDrawingRef.current = false;
+    setIsDrawing(false);
   };
 
-  const handlePointerLeave = (event) => {
-    event.preventDefault();
-    isDrawingRef.current = false;
+  const handleClear = () => {
+    const canvas = canvasRef.current;
+    const ctx = ctxRef.current;
+    if (!canvas || !ctx) return;
+
+    ctx.clearRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+    ctx.fillStyle = "#FFFFFF";
+    ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
   };
 
   return (
-    <canvas
-      ref={canvasRef}
-      className="coloring-canvas"
-      width={1200}
-      height={700}
-      onMouseDown={handlePointerDown}
-      onMouseMove={handlePointerMove}
-      onMouseUp={handlePointerUp}
-      onMouseLeave={handlePointerLeave}
-      onTouchStart={handlePointerDown}
-      onTouchMove={handlePointerMove}
-      onTouchEnd={handlePointerUp}
-    />
+    <div className="coloring-canvas-container">
+      <canvas
+        ref={canvasRef}
+        className="coloring-canvas"
+        onMouseDown={handlePointerDown}
+        onMouseMove={handlePointerMove}
+        onMouseUp={handlePointerUp}
+        onMouseLeave={handlePointerUp}
+        onTouchStart={handlePointerDown}
+        onTouchMove={handlePointerMove}
+        onTouchEnd={handlePointerUp}
+      />
+      <button
+        type="button"
+        className="secondary-button canvas-clear-button"
+        onClick={handleClear}
+      >
+        지우기
+      </button>
+    </div>
   );
 }
