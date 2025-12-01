@@ -8,9 +8,6 @@ import { loadLastStoryFromStorage } from "../lib/storyStorage";
 import ColoringCanvas from "../components/coloring/ColoringCanvas";
 import ColorPalette from "../components/coloring/ColorPalette";
 import Toolbar from "../components/coloring/Toolbar";
-// PageThumbnails, SceneSidebar 등은 이후 단계에서 사용할 수 있도록 남겨둠
-// import PageThumbnails from "../components/coloring/PageThumbnails";
-// import SceneSidebar from "../components/coloring/SceneSidebar";
 
 export default function ColoringPage() {
   const router = useRouter();
@@ -20,13 +17,15 @@ export default function ColoringPage() {
 
   useEffect(() => {
     const data = loadLastStoryFromStorage();
+    console.log("[ColoringPage] loadLastStoryFromStorage result:", data);
+
     if (data && typeof data.story === "string") {
       setStory(data.story);
     }
     setLoading(false);
   }, []);
 
-  // 아직 로딩 중일 때 간단한 플레이스홀더
+  // 로딩 중
   if (loading) {
     return (
       <main className="coloring-page">
@@ -38,7 +37,7 @@ export default function ColoringPage() {
     );
   }
 
-  // 저장된 동화가 전혀 없을 때: 안내 화면
+  // 저장된 동화가 전혀 없을 때
   if (!story || story.trim().length === 0) {
     return (
       <main className="coloring-page">
@@ -51,8 +50,7 @@ export default function ColoringPage() {
 
         <section className="coloring-empty-state">
           <div className="alert-box alert-box--warning">
-            먼저 첫 번째 페이지에서 새로 동화를 만든 뒤,
-            &nbsp;
+            먼저 첫 번째 페이지에서 새로 동화를 만든 뒤,&nbsp;
             <strong>“이 동화로 색칠 놀이 하기”</strong> 버튼을 눌러 주세요.
           </div>
 
@@ -77,7 +75,7 @@ export default function ColoringPage() {
     );
   }
 
-  // 여기부터는 "동화는 있다" 상태 → 색칠 UI 표시
+  // 여기부터는 "동화는 있다" 상태 → 색칠 UI
   return (
     <main className="coloring-page">
       <header className="coloring-header">
@@ -88,29 +86,21 @@ export default function ColoringPage() {
       </header>
 
       <section className="coloring-layout">
-        {/* 왼쪽: (향후) 장면 선택 / 썸네일 영역 */}
         <aside className="coloring-sidebar">
           <h2 className="sidebar-title">장면 선택</h2>
           <p className="sidebar-helper">
             다음 단계에서 &ldquo;이야기 장면별 컬러링 그림&rdquo;을 자동으로
             생성해 이곳에 썸네일로 보여줄 예정입니다.
           </p>
-          {/* 향후: PageThumbnails, SceneSidebar 등을 여기에 배치 */}
         </aside>
 
-        {/* 오른쪽: 메인 색칠 캔버스 */}
         <div className="coloring-main">
           <div className="coloring-toolbar-row">
-            {/* 색 팔레트 (20색) */}
             <ColorPalette />
-            {/* 브러시/지우개 등 도구 모음 (이미 구현해둔 Toolbar 컴포넌트 사용) */}
             <Toolbar />
           </div>
 
           <div className="coloring-canvas-wrapper">
-            {/* 현재는 단순 브러시 드로잉.
-               다음 단계에서 story를 기반으로 생성한 선 그림을
-               배경 레이어로 올려서 "색 채우기" 기능을 확장할 수 있음. */}
             <ColoringCanvas />
           </div>
 
