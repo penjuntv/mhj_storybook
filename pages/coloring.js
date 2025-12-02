@@ -1,37 +1,80 @@
 // pages/coloring.js
-// STEP 3: 저장된 동화를 바탕으로 색칠 놀이 화면을 보여주는 페이지
-// 이번 버전은 "에러 없이 동작하는 안정적인 뼈대"를 목표로 한다.
+// STEP 3: 동화를 장면(scene)으로 나눠 보여주고, 장면별 색칠 캔버스를 제공하는 페이지
+// - Step1/Step2는 전혀 건드리지 않는다.
+// - 스토리는 querystring (?story=...) 에서만 받는다.
+// - 에러 대신 '장면 없음' / '스토리 없음' 같은 안전한 상태로 처리한다.
 
 import { useRouter } from "next/router";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import ColoringCanvas from "../components/coloring/ColoringCanvas";
 import ColorPalette from "../components/coloring/ColorPalette";
+import SceneSidebar from "../components/coloring/SceneSidebar";
 import Toolbar from "../components/coloring/Toolbar";
+
+// 동화를 3~6개의 장면으로 자르는 유틸
+function splitStoryIntoScenes(story) {
+  if (typeof story !== "string") return [];
+
+  const trimmed = story.trim();
+  if (!trimmed) return [];
+
+  // 1단계: 문장 단위로 자르기
+  const sentences = trimmed.split(/(?<=[.!?])\s+/);
+
+  // 문장이 너무 짧을 때는 그대로 하나의 장면으로 사용
+  if (sentences.length <= 3) {
+    return [trimmed];
+  }
+
+  // 2단계: 문장을 3~4개씩 묶어서 장면으로 만든다.
+  const scenes = [];
+  const chunkSize = 3;
+  for (let i = 0; i < sentences.length; i += chunkSize) {
+    const chunk = sentences.slice(i, i + chunkSize).join(" ");
+    scenes.push(chunk);
+  }
+
+  // 장면이 너무 많으면 앞에서 6개까지만 사용 (컬러링 장면 6장 기준)
+  return scenes.slice(0, 6);
+}
 
 export default function ColoringPage() {
   const router = useRouter();
 
-  // 쿼리에서 받은 전체 스토리
-  const [story, setStory] = useState("");
+  const [rawStory, setRawStory] = useState("");
   const [isReady, setIsReady] = useState(false);
-
-  // 현재 선택된 색상 (팔레트 ↔ 캔버스 공유)
+  const [selectedSceneIndex, setSelectedSceneIndex] = useState(0);
   const [selectedColor, setSelectedColor] = useState("#FF4B4B");
 
+  // 1) 쿼리에서 스토리 읽기
   useEffect(() => {
     if (!router.isReady) return;
 
-    // ?story=... 쿼리에서 스토리 추출
     const q = router.query.story;
     const storyFromQuery =
       typeof q === "string" ? decodeURIComponent(q) : "";
 
-    setStory(storyFromQuery || "");
+    setRawStory(storyFromQuery || "");
     setIsReady(true);
   }, [router.isReady, router.query.story]);
 
-  // 1) 아직 router가 준비 안 된 상태 (SSR → CSR 전환 직후)
+  // 2) 스토리를 장면 배열로 변환
+  const scenes = useMemo(() => {
+    return splitStoryIntoScenes(rawStory);
+  }, [rawStory]);
+
+  // 현재 선택된 장면 텍스트
+  const currentScene =
+    Array.isArray(scenes) && scenes.length > 0
+      ? scenes[Math.min(selectedSceneIndex, scenes.length - 1)]
+      : "";
+
+  // ----------------------------------
+  // 상태별 렌더링
+  // ----------------------------------
+
+  // 아직 router 준비 전
   if (!isReady) {
     return (
       <main className="coloring-page">
@@ -45,8 +88,8 @@ export default function ColoringPage() {
     );
   }
 
-  // 2) 스토리가 전혀 없는 상태 (직접 /coloring 주소를 치고 들어온 경우 등)
-  if (!story || story.trim().length === 0) {
+  // 스토리 자체가 없는 경우
+  if (!rawStory || rawStory.trim().length === 0) {
     return (
       <main className="coloring-page">
         <header className="coloring-header">
@@ -83,38 +126,42 @@ export default function ColoringPage() {
     );
   }
 
-  // 3) 스토리는 정상적으로 넘어온 상태 → 색칠 UI 뼈대 표시
-  //    여기서는 아직 "장면 분리 / AI 그림 생성"은 하지 않고,
-  //    스토리 프리뷰 + 캔버스 + 색 팔레트만 제공한다.
-
-  // 스토리 첫 부분만 살짝 프리뷰 (3줄 정도)
-  const previewText = story.split("\n").slice(0, 3).join(" ").slice(0, 200);
+  // 장면 배열이 비정상일 경우도 안전하게 처리
+  const safeScenes = Array.isArray(scenes) ? scenes : [];
 
   return (
     <main className="coloring-page">
       <header className="coloring-header">
         <h1>Step 3 · 색칠 놀이</h1>
         <p className="coloring-subtitle">
-          오늘 만든 영어 동화를 바탕으로 AI가 만든 그림에 색을 칠해 보세요.
+          오늘 만든 영어 동화를 바탕으로 장면별 AI 컬러링 그림을 그릴 수 있는
+          뼈대 화면입니다. 지금은 아이가 자유롭게 그려보는 버전이고, 이후
+          버전에서 자동 컬러링 선그림이 추가될 예정입니다.
         </p>
       </header>
 
       <section className="coloring-layout">
-        {/* 왼쪽: 장면 / 스토리 프리뷰 (지금은 간단 버전) */}
-        <aside className="coloring-sidebar">
-          <h2 className="sidebar-title">장면 선택</h2>
-          <p className="sidebar-helper">
-            지금은 스토리 첫 부분만 보여줍니다. 이후 버전에서 장면별 컬러링
-            그림과 썸네일을 이곳에 추가할 예정입니다.
-          </p>
-          <div className="story-preview-box">
-            <p className="story-preview-label">오늘 만든 동화</p>
-            <p className="story-preview-text">{previewText}...</p>
-          </div>
-        </aside>
+        {/* 왼쪽: 장면 리스트 + 전체 스토리 요약 */}
+        <SceneSidebar
+          scenes={safeScenes}
+          selectedIndex={selectedSceneIndex}
+          onSelectScene={setSelectedSceneIndex}
+          fullStory={rawStory}
+        />
 
-        {/* 오른쪽: 색 팔레트 + 캔버스 + 툴바 */}
+        {/* 오른쪽: 팔레트 + 캔버스 + 툴바 */}
         <div className="coloring-main">
+          <div className="coloring-scene-header">
+            <span className="scene-badge">
+              Scene {safeScenes.length > 0 ? selectedSceneIndex + 1 : "-"}
+            </span>
+            <p className="scene-description">
+              {currentScene
+                ? currentScene
+                : "선택된 장면이 없습니다. 왼쪽에서 장면을 선택해 주세요."}
+            </p>
+          </div>
+
           <div className="coloring-toolbar-row">
             <ColorPalette
               selectedColor={selectedColor}
@@ -128,8 +175,9 @@ export default function ColoringPage() {
           </div>
 
           <p className="coloring-tip">
-            Tip: 태블릿/스마트폰에서는 가로 화면으로 돌리면 색칠하기 캔버스를 더
-            크게 볼 수 있어요.
+            Tip: 아이에게 &ldquo;이 장면에 무슨 일이 일어났는지 그림으로
+            보여줄래?&rdquo; 하고 질문해 주세요. 나중에 AI가 자동으로 그린
+            선그림과 비교해 보는 활동으로 확장할 수 있습니다.
           </p>
         </div>
       </section>
