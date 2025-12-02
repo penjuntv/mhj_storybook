@@ -1,90 +1,59 @@
 // components/coloring/ColoringCanvas.js
-// 선그림(배경 이미지) 위에 자유롭게 색칠하는 캔버스 (마우스/터치 지원)
+// 정적 선그림 템플릿 위에 자유롭게 색칠하는 캔버스
+// (마우스/터치 모두 지원)
 
 import { useEffect, useRef } from "react";
 
 export default function ColoringCanvas({
   strokeColor = "#FF4B4B",
-  backgroundImageUrl,
+  templateImageUrl = null,
 }) {
   const canvasRef = useRef(null);
   const isDrawingRef = useRef(false);
   const lastPointRef = useRef({ x: 0, y: 0 });
-  const backgroundImageRef = useRef(null);
 
-  const initCanvasBase = () => {
+  // 배경(흰색 + 템플릿) 그리기 공통 함수
+  const drawBackground = () => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-    const ctx = canvas.getContext("2d");
 
-    // 흰 배경 + 선 스타일 기본값
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+
+    // 흰색 배경
     ctx.fillStyle = "#FFFFFF";
     ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    // 선 스타일 기본값 설정
     ctx.lineCap = "round";
     ctx.lineJoin = "round";
     ctx.lineWidth = 6;
 
-    // 배경 이미지가 있다면 다시 그려줌
-    if (backgroundImageRef.current) {
-      drawBackgroundImage(ctx, backgroundImageRef.current, canvas);
+    // 템플릿 이미지가 있다면 배경으로 그리기
+    if (templateImageUrl) {
+      const img = new Image();
+      img.src = templateImageUrl;
+      img.onload = () => {
+        // 캔버스 전체에 맞게 그림
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      };
+      // onerror는 일단 무시 (이미지 없으면 그냥 흰 배경만)
     }
   };
 
-  const drawBackgroundImage = (ctx, img, canvas) => {
-    if (!img || !canvas) return;
-    const { width, height } = canvas;
-
-    // 비율 유지하면서 중앙 배치
-    const scale = Math.min(width / img.width, height / img.height);
-    const drawWidth = img.width * scale;
-    const drawHeight = img.height * scale;
-    const offsetX = (width - drawWidth) / 2;
-    const offsetY = (height - drawHeight) / 2;
-
-    ctx.drawImage(img, offsetX, offsetY, drawWidth, drawHeight);
-  };
-
-  // 1) 최초 캔버스 초기화
+  // 초기 마운트 & 템플릿 변경 시 배경 새로 그리기
   useEffect(() => {
-    initCanvasBase();
+    drawBackground();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [templateImageUrl]);
 
-  // 2) 배경 이미지가 바뀔 때마다 로드해서 그리기
+  // 그리기 이벤트 (마우스/터치)
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
+
     const ctx = canvas.getContext("2d");
-
-    if (!backgroundImageUrl) {
-      backgroundImageRef.current = null;
-      initCanvasBase();
-      return;
-    }
-
-    const img = new Image();
-    img.crossOrigin = "anonymous";
-    img.onload = () => {
-      backgroundImageRef.current = img;
-      // 흰 배경 + 이미지 다시 그림
-      ctx.fillStyle = "#FFFFFF";
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
-      drawBackgroundImage(ctx, img, canvas);
-    };
-    img.onerror = (e) => {
-      console.error("Failed to load background image", e);
-      backgroundImageRef.current = null;
-      initCanvasBase();
-    };
-    img.src = backgroundImageUrl;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [backgroundImageUrl]);
-
-  // 3) 드로잉 이벤트
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
 
     const getPos = (e) => {
       const rect = canvas.getBoundingClientRect();
@@ -148,18 +117,9 @@ export default function ColoringCanvas({
     };
   }, [strokeColor]);
 
+  // 지우기(배경 + 템플릿만 다시 그리고, 사용자가 그린 선은 모두 제거)
   const handleClear = () => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext("2d");
-
-    // 흰 배경 초기화 후, 배경 이미지는 다시 그림
-    ctx.fillStyle = "#FFFFFF";
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-    if (backgroundImageRef.current) {
-      drawBackgroundImage(ctx, backgroundImageRef.current, canvas);
-    }
+    drawBackground();
   };
 
   return (
