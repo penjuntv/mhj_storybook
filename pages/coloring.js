@@ -1,8 +1,11 @@
 // pages/coloring.js
-// STEP 3: 동화를 장면(scene)으로 나눠 보여주고, 장면별 색칠 캔버스를 제공하는 페이지
+// STEP 3: 동화를 장면(scene)으로 나눠 보여주고,
+// 테마별 정적 선그림 템플릿을 배경으로 쓰는 색칠 페이지.
+//
 // - Step1/Step2는 전혀 건드리지 않는다.
-// - 스토리는 querystring (?story=...) 에서만 받는다.
-// - 에러 대신 '장면 없음' / '스토리 없음' 같은 안전한 상태로 처리한다.
+// - story, locale, childName, themeKey는 querystring으로만 받는다.
+// - flood-fill(영역 자동 채우기)은 아직 하지 않고
+//   "선그림 위에 자유롭게 색칠하는 단계"까지만 구현.
 
 import { useRouter } from "next/router";
 import { useEffect, useMemo, useState } from "react";
@@ -11,6 +14,8 @@ import ColoringCanvas from "../components/coloring/ColoringCanvas";
 import ColorPalette from "../components/coloring/ColorPalette";
 import SceneSidebar from "../components/coloring/SceneSidebar";
 import Toolbar from "../components/coloring/Toolbar";
+
+import { COLORING_TEMPLATES } from "../data/coloringTemplates";
 
 // 동화를 3~6개의 장면으로 자르는 유틸
 function splitStoryIntoScenes(story) {
@@ -35,7 +40,7 @@ function splitStoryIntoScenes(story) {
     scenes.push(chunk);
   }
 
-  // 장면이 너무 많으면 앞에서 6개까지만 사용 (컬러링 장면 6장 기준)
+  // 장면이 너무 많으면 앞에서 6개까지만 사용
   return scenes.slice(0, 6);
 }
 
@@ -43,42 +48,54 @@ export default function ColoringPage() {
   const router = useRouter();
 
   const [rawStory, setRawStory] = useState("");
+  const [locale, setLocale] = useState("ko");
+  const [childName, setChildName] = useState("");
+  const [themeKey, setThemeKey] = useState("everyday");
+
   const [isReady, setIsReady] = useState(false);
   const [selectedSceneIndex, setSelectedSceneIndex] = useState(0);
   const [selectedColor, setSelectedColor] = useState("#FF4B4B");
 
-  // 장면별 AI 선그림 URL 저장
-  const [sceneImages, setSceneImages] = useState([]);
-  const [isGeneratingImage, setIsGeneratingImage] = useState(false);
-  const [imageError, setImageError] = useState("");
-
-  // 1) 쿼리에서 스토리 + 메타데이터 읽기
+  // 1) 쿼리에서 스토리/테마 정보 읽기
   useEffect(() => {
     if (!router.isReady) return;
 
-    const q = router.query.story;
+    const qStory = router.query.story;
+    const qLocale = router.query.locale;
+    const qChildName = router.query.childName;
+    const qThemeKey = router.query.themeKey;
+
     const storyFromQuery =
-      typeof q === "string" ? decodeURIComponent(q) : "";
+      typeof qStory === "string" ? decodeURIComponent(qStory) : "";
+    const localeFromQuery =
+      typeof qLocale === "string" && qLocale ? qLocale : "ko";
+    const nameFromQuery =
+      typeof qChildName === "string" ? qChildName : "";
+    const themeFromQuery =
+      typeof qThemeKey === "string" && qThemeKey
+        ? qThemeKey
+        : "everyday";
 
     setRawStory(storyFromQuery || "");
+    setLocale(localeFromQuery);
+    setChildName(nameFromQuery);
+    setThemeKey(themeFromQuery);
     setIsReady(true);
-  }, [router.isReady, router.query.story]);
-
-  const locale =
-    typeof router.query.locale === "string" ? router.query.locale : "ko";
-  const childName =
-    typeof router.query.childName === "string"
-      ? router.query.childName
-      : "";
-  const themeKey =
-    typeof router.query.themeKey === "string"
-      ? router.query.themeKey
-      : "everyday";
+  }, [router.isReady, router.query]);
 
   // 2) 스토리를 장면 배열로 변환
   const scenes = useMemo(() => {
     return splitStoryIntoScenes(rawStory);
   }, [rawStory]);
+
+  // 3) 테마에 맞는 정적 선그림 템플릿 선택
+  const templatesForTheme = useMemo(() => {
+    const list =
+      (themeKey && COLORING_TEMPLATES[themeKey]) ||
+      COLORING_TEMPLATES["everyday"] ||
+      [];
+    return Array.isArray(list) ? list : [];
+  }, [themeKey]);
 
   // 현재 선택된 장면 텍스트
   const currentScene =
@@ -86,25 +103,13 @@ export default function ColoringPage() {
       ? scenes[Math.min(selectedSceneIndex, scenes.length - 1)]
       : "";
 
-  // 장면 개수가 바뀔 때 sceneImages 길이도 맞춰 줌
-  useEffect(() => {
-    if (!Array.isArray(scenes)) {
-      setSceneImages([]);
-      return;
-    }
-    setSceneImages((prev) => {
-      const next = [...prev];
-      if (next.length < scenes.length) {
-        // 부족한 만큼 null 채우기
-        while (next.length < scenes.length) {
-          next.push(null);
-        }
-      } else if (next.length > scenes.length) {
-        next.length = scenes.length;
-      }
-      return next;
-    });
-  }, [scenes]);
+  // 현재 선택된 템플릿 (테마 템플릿 배열 기준)
+  const currentTemplate =
+    Array.isArray(templatesForTheme) && templatesForTheme.length > 0
+      ? templatesForTheme[
+          Math.min(selectedSceneIndex, templatesForTheme.length - 1)
+        ]
+      : null;
 
   // ----------------------------------
   // 상태별 렌더링
@@ -162,93 +167,40 @@ export default function ColoringPage() {
     );
   }
 
-  // 장면 배열이 비정상일 경우도 안전하게 처리
+  // 장면 배열/템플릿 배열 안전 처리
   const safeScenes = Array.isArray(scenes) ? scenes : [];
-
-  // 현재 선택된 장면의 AI 선그림
-  const currentSceneImage =
-    safeScenes.length > 0 ? sceneImages[selectedSceneIndex] : null;
-
-  // ----------------------------------
-  // AI 선그림 생성 핸들러
-  // ----------------------------------
-
-  const handleGenerateImageForScene = async () => {
-    if (!currentScene || isGeneratingImage) return;
-
-    setIsGeneratingImage(true);
-    setImageError("");
-
-    try {
-      const res = await fetch("/api/generateColoringImage", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          sceneText: currentScene,
-          childName,
-          themeKey,
-          locale,
-        }),
-      });
-
-      if (!res.ok) {
-        const text = await res.text();
-        throw new Error(text || `HTTP ${res.status}`);
-      }
-
-      const data = await res.json();
-      if (!data.imageUrl) {
-        throw new Error("imageUrl is missing in response.");
-      }
-
-      setSceneImages((prev) => {
-        const next = [...prev];
-        next[selectedSceneIndex] = data.imageUrl;
-        return next;
-      });
-    } catch (err) {
-      console.error("generateColoringImage failed:", err);
-      setImageError(
-        err && err.message
-          ? `그림 생성 중 오류가 발생했습니다: ${err.message}`
-          : "그림 생성 중 알 수 없는 오류가 발생했습니다."
-      );
-    } finally {
-      setIsGeneratingImage(false);
-    }
-  };
-
-  // ----------------------------------
-  // 렌더링
-  // ----------------------------------
+  const safeTemplates = Array.isArray(templatesForTheme)
+    ? templatesForTheme
+    : [];
 
   return (
     <main className="coloring-page">
       <header className="coloring-header">
         <h1>Step 3 · 색칠 놀이</h1>
         <p className="coloring-subtitle">
-          오늘 만든 영어 동화를 장면별로 나눠서, 아이가 직접 그림으로 표현해 볼
-          수 있는 색칠 놀이 화면입니다. 이후 버전에서 AI 컬러링 선그림이
-          자동으로 추가될 예정입니다.
+          오늘 만든 영어 동화를 바탕으로 테마에 맞는 선그림 위에 색을 칠해
+          보세요.
         </p>
       </header>
 
       <section className="coloring-layout">
-        {/* 왼쪽: 장면 리스트 + 전체 스토리 요약 */}
+        {/* 왼쪽: 장면 리스트 + 썸네일 */}
         <SceneSidebar
           scenes={safeScenes}
+          templates={safeTemplates}
           selectedIndex={selectedSceneIndex}
           onSelectScene={setSelectedSceneIndex}
           fullStory={rawStory}
+          childName={childName}
+          locale={locale}
         />
 
         {/* 오른쪽: 팔레트 + 캔버스 + 툴바 */}
         <div className="coloring-main">
           <div className="coloring-scene-header">
             <span className="scene-badge">
-              Scene {safeScenes.length > 0 ? selectedSceneIndex + 1 : "-"}
+              Scene{" "}
+              {safeScenes.length > 0 ? selectedSceneIndex + 1 : "-"}
             </span>
             <p className="scene-description">
               {currentScene
@@ -265,42 +217,17 @@ export default function ColoringPage() {
             <Toolbar />
           </div>
 
-          <div className="coloring-toolbar-row" style={{ marginTop: 8 }}>
-            <button
-              type="button"
-              className="primary-button"
-              onClick={handleGenerateImageForScene}
-              disabled={!currentScene || isGeneratingImage}
-            >
-              {isGeneratingImage
-                ? "이 장면 AI 선그림 만드는 중…"
-                : "이 장면 AI 선그림 만들기 (베타)"}
-            </button>
-            {currentSceneImage && (
-              <span className="small-helper-text">
-                이 장면에는 생성된 선그림이 있습니다. 아래 캔버스에서 색을
-                칠해 보세요.
-              </span>
-            )}
-          </div>
-
-          {imageError && (
-            <p className="error-text" style={{ marginTop: 8 }}>
-              {imageError}
-            </p>
-          )}
-
           <div className="coloring-canvas-wrapper">
             <ColoringCanvas
               strokeColor={selectedColor}
-              backgroundImageUrl={currentSceneImage}
+              templateImageUrl={currentTemplate?.imageSrc || null}
             />
           </div>
 
           <p className="coloring-tip">
             Tip: 아이에게 &ldquo;이 장면에 무슨 일이 일어났는지 그림으로
-            보여줄래?&rdquo; 하고 질문해 주세요. 나중에 AI가 자동으로 그린
-            선그림과 비교해 보는 활동으로 확장할 수 있습니다.
+            보여줄래?&rdquo; 하고 질문해 주세요. 나중에 자동 생성 선그림과
+            비교하는 활동으로 확장할 수 있습니다.
           </p>
         </div>
       </section>
