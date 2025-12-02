@@ -1,93 +1,100 @@
 // components/coloring/ColoringCanvas.js
-// 현재 버전: 브러시로 자유롭게 그리는 낙서 캔버스
-// 이후 버전에서 "선 따기 + 영역 채우기" 컬러링 기능을 여기에 덧씌울 예정.
+// 아주 단순한 자유 그리기용 캔버스 (마우스/터치 모두 지원)
 
-import { useEffect, useRef, useState } from "react";
-
-const CANVAS_WIDTH = 900;
-const CANVAS_HEIGHT = 520;
+import { useEffect, useRef } from "react";
 
 export default function ColoringCanvas({ strokeColor = "#FF4B4B" }) {
   const canvasRef = useRef(null);
-  const ctxRef = useRef(null);
-
-  const [isDrawing, setIsDrawing] = useState(false);
-  const [lastPos, setLastPos] = useState({ x: 0, y: 0 });
+  const isDrawingRef = useRef(false);
+  const lastPointRef = useRef({ x: 0, y: 0 });
 
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
 
-    canvas.width = CANVAS_WIDTH;
-    canvas.height = CANVAS_HEIGHT;
-
     const ctx = canvas.getContext("2d");
+    // 기본 배경 흰색
+    ctx.fillStyle = "#FFFFFF";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
     ctx.lineCap = "round";
     ctx.lineJoin = "round";
-    ctx.lineWidth = 8;
-    ctx.strokeStyle = strokeColor;
-    ctxRef.current = ctx;
-
-    // 하얀 배경
-    ctx.fillStyle = "#FFFFFF";
-    ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+    ctx.lineWidth = 6;
   }, []);
 
   useEffect(() => {
-    if (ctxRef.current) {
-      ctxRef.current.strokeStyle = strokeColor;
-    }
-  }, [strokeColor]);
-
-  const getOffsetPos = (event) => {
     const canvas = canvasRef.current;
-    if (!canvas) return { x: 0, y: 0 };
+    if (!canvas) return;
 
-    const rect = canvas.getBoundingClientRect();
-    const clientX = "touches" in event ? event.touches[0].clientX : event.clientX;
-    const clientY = "touches" in event ? event.touches[0].clientY : event.clientY;
+    const ctx = canvas.getContext("2d");
 
-    return {
-      x: clientX - rect.left,
-      y: clientY - rect.top,
+    const getPos = (e) => {
+      const rect = canvas.getBoundingClientRect();
+      if (e.touches && e.touches[0]) {
+        return {
+          x: e.touches[0].clientX - rect.left,
+          y: e.touches[0].clientY - rect.top,
+        };
+      }
+      return {
+        x: e.clientX - rect.left,
+        y: e.clientY - rect.top,
+      };
     };
-  };
 
-  const handlePointerDown = (event) => {
-    event.preventDefault();
-    const pos = getOffsetPos(event);
-    setLastPos(pos);
-    setIsDrawing(true);
-  };
+    const handleDown = (e) => {
+      e.preventDefault();
+      isDrawingRef.current = true;
+      const pos = getPos(e);
+      lastPointRef.current = pos;
+    };
 
-  const handlePointerMove = (event) => {
-    if (!isDrawing || !ctxRef.current) return;
-    event.preventDefault();
+    const handleMove = (e) => {
+      if (!isDrawingRef.current) return;
+      e.preventDefault();
 
-    const pos = getOffsetPos(event);
-    const ctx = ctxRef.current;
+      const pos = getPos(e);
+      const last = lastPointRef.current;
 
-    ctx.beginPath();
-    ctx.moveTo(lastPos.x, lastPos.y);
-    ctx.lineTo(pos.x, pos.y);
-    ctx.stroke();
+      ctx.strokeStyle = strokeColor;
+      ctx.beginPath();
+      ctx.moveTo(last.x, last.y);
+      ctx.lineTo(pos.x, pos.y);
+      ctx.stroke();
 
-    setLastPos(pos);
-  };
+      lastPointRef.current = pos;
+    };
 
-  const handlePointerUp = (event) => {
-    event.preventDefault();
-    setIsDrawing(false);
-  };
+    const handleUp = (e) => {
+      if (!isDrawingRef.current) return;
+      e.preventDefault();
+      isDrawingRef.current = false;
+    };
+
+    canvas.addEventListener("mousedown", handleDown);
+    canvas.addEventListener("mousemove", handleMove);
+    window.addEventListener("mouseup", handleUp);
+
+    canvas.addEventListener("touchstart", handleDown, { passive: false });
+    canvas.addEventListener("touchmove", handleMove, { passive: false });
+    window.addEventListener("touchend", handleUp);
+
+    return () => {
+      canvas.removeEventListener("mousedown", handleDown);
+      canvas.removeEventListener("mousemove", handleMove);
+      window.removeEventListener("mouseup", handleUp);
+
+      canvas.removeEventListener("touchstart", handleDown);
+      canvas.removeEventListener("touchmove", handleMove);
+      window.removeEventListener("touchend", handleUp);
+    };
+  }, [strokeColor]);
 
   const handleClear = () => {
     const canvas = canvasRef.current;
-    const ctx = ctxRef.current;
-    if (!canvas || !ctx) return;
-
-    ctx.clearRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
     ctx.fillStyle = "#FFFFFF";
-    ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
   };
 
   return (
@@ -95,19 +102,10 @@ export default function ColoringCanvas({ strokeColor = "#FF4B4B" }) {
       <canvas
         ref={canvasRef}
         className="coloring-canvas"
-        onMouseDown={handlePointerDown}
-        onMouseMove={handlePointerMove}
-        onMouseUp={handlePointerUp}
-        onMouseLeave={handlePointerUp}
-        onTouchStart={handlePointerDown}
-        onTouchMove={handlePointerMove}
-        onTouchEnd={handlePointerUp}
+        width={800}
+        height={480}
       />
-      <button
-        type="button"
-        className="secondary-button canvas-clear-button"
-        onClick={handleClear}
-      >
+      <button type="button" className="canvas-clear-button" onClick={handleClear}>
         지우기
       </button>
     </div>
