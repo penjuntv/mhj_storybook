@@ -1,7 +1,7 @@
 // pages/coloring.js
 // STEP 3: 동화를 장면(scene)으로 나눠 보여주고, 장면별 색칠 캔버스를 제공하는 페이지
-// - Step1/Step2는 전혀 건드리지 않는다.
-// - 스토리는 querystring (?story=...) 에서만 받는다.
+// - Step1/Step2는 건드리지 않는다.
+// - 스토리는 querystring (?story=...) 에서 받는다. (필요하면 나중에 localStorage fallback 추가)
 // - 에러 대신 '장면 없음' / '스토리 없음' 같은 안전한 상태로 처리한다.
 
 import { useRouter } from "next/router";
@@ -20,23 +20,28 @@ function splitStoryIntoScenes(story) {
   if (!trimmed) return [];
 
   // 1단계: 문장 단위로 자르기
-  const sentences = trimmed.split(/(?<=[.!?])\s+/);
+  const sentences = trimmed.split(/(?<=[.!?])\s+/).filter(Boolean);
 
   // 문장이 너무 짧을 때는 그대로 하나의 장면으로 사용
   if (sentences.length <= 3) {
     return [trimmed];
   }
 
-  // 2단계: 문장을 3~4개씩 묶어서 장면으로 만든다.
+  // 2단계: 문장을 2~4개씩 묶어서 장면으로 만든다 (너무 잘게 쪼개지지 않도록)
   const scenes = [];
-  const chunkSize = 3;
+  const chunkSize = 3; // 기본 3문장씩 묶기
+
   for (let i = 0; i < sentences.length; i += chunkSize) {
     const chunk = sentences.slice(i, i + chunkSize).join(" ");
     scenes.push(chunk);
   }
 
   // 장면이 너무 많으면 앞에서 6개까지만 사용 (컬러링 장면 6장 기준)
-  return scenes.slice(0, 6);
+  if (scenes.length > 6) {
+    return scenes.slice(0, 6);
+  }
+
+  return scenes;
 }
 
 export default function ColoringPage() {
@@ -65,9 +70,10 @@ export default function ColoringPage() {
   }, [rawStory]);
 
   // 현재 선택된 장면 텍스트
+  const safeScenes = Array.isArray(scenes) ? scenes : [];
   const currentScene =
-    Array.isArray(scenes) && scenes.length > 0
-      ? scenes[Math.min(selectedSceneIndex, scenes.length - 1)]
+    safeScenes.length > 0
+      ? safeScenes[Math.min(selectedSceneIndex, safeScenes.length - 1)]
       : "";
 
   // ----------------------------------
@@ -80,9 +86,7 @@ export default function ColoringPage() {
       <main className="coloring-page">
         <header className="coloring-header">
           <h1>Step 3 · 색칠 놀이</h1>
-          <p className="coloring-subtitle">
-            동화 내용을 불러오는 중입니다…
-          </p>
+          <p className="coloring-subtitle">동화 내용을 불러오는 중입니다…</p>
         </header>
       </main>
     );
@@ -126,17 +130,14 @@ export default function ColoringPage() {
     );
   }
 
-  // 장면 배열이 비정상일 경우도 안전하게 처리
-  const safeScenes = Array.isArray(scenes) ? scenes : [];
-
   return (
     <main className="coloring-page">
       <header className="coloring-header">
         <h1>Step 3 · 색칠 놀이</h1>
         <p className="coloring-subtitle">
-          오늘 만든 영어 동화를 바탕으로 장면별 AI 컬러링 그림을 그릴 수 있는
-          뼈대 화면입니다. 지금은 아이가 자유롭게 그려보는 버전이고, 이후
-          버전에서 자동 컬러링 선그림이 추가될 예정입니다.
+          오늘 만든 영어 동화를 장면별로 나눠서, 아이가 직접 그림으로 표현해
+          볼 수 있는 색칠 놀이 화면입니다. 이후 버전에서 AI 컬러링 선그림이
+          자동으로 추가될 예정입니다.
         </p>
       </header>
 
