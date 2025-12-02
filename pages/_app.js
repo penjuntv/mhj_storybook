@@ -1,10 +1,7 @@
 // pages/_app.js
-// 전역 스타일만 불러오는 Next.js 커스텀 App 컴포넌트
-
 import "../styles/globals.css";
+import "../styles/coloring.css"; // 새로 만든 Step3 전용 CSS
 
-function MyApp({ Component, pageProps }) {
+export default function MyApp({ Component, pageProps }) {
   return <Component {...pageProps} />;
 }
-
-export default MyApp;
