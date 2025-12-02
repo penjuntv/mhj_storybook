@@ -1,6 +1,6 @@
 // components/coloring/ColoringCanvas.js
-// 간단한 낙서용 캔버스 (브러시로 그리기)
-// 아직 "영역 채우기 Colorfy 스타일"은 아니고, 에러 없는 기본 캔버스 뼈대이다.
+// 현재 버전: 브러시로 자유롭게 그리는 낙서 캔버스
+// 이후 버전에서 "선 따기 + 영역 채우기" 컬러링 기능을 여기에 덧씌울 예정.
 
 import { useEffect, useRef, useState } from "react";
 
@@ -14,7 +14,6 @@ export default function ColoringCanvas({ strokeColor = "#FF4B4B" }) {
   const [isDrawing, setIsDrawing] = useState(false);
   const [lastPos, setLastPos] = useState({ x: 0, y: 0 });
 
-  // 초기 캔버스 세팅
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -29,12 +28,11 @@ export default function ColoringCanvas({ strokeColor = "#FF4B4B" }) {
     ctx.strokeStyle = strokeColor;
     ctxRef.current = ctx;
 
-    // 흰 배경
+    // 하얀 배경
     ctx.fillStyle = "#FFFFFF";
     ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
   }, []);
 
-  // 색이 바뀔 때마다 strokeStyle 업데이트
   useEffect(() => {
     if (ctxRef.current) {
       ctxRef.current.strokeStyle = strokeColor;
